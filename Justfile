@@ -125,6 +125,32 @@ promote-to-dev: test
     git checkout "${branch}"
     echo "Done. '${branch}' merged into develop and pushed."
 
+# ─── env setup ───────────────────────────────────────────────────────────────
+
+# Run full bootstrap on a fresh Ubuntu machine
+bootstrap:
+    bash scripts/bootstrap.sh
+
+# Verify all required secret files are present and filled in
+check-secrets:
+    bash scripts/setup-secrets.sh
+
+# Create docker/.env from template if it doesn't exist
+init-env:
+    @test -f docker/.env || (cp docker/.env.example docker/.env && echo "Created docker/.env — fill in credentials before running containers.")
+
+# Create docker/agent.local.yml from template if it doesn't exist
+init-agent-local:
+    @test -f docker/agent.local.yml || (cp docker/agent.yml docker/agent.local.yml && echo "Created docker/agent.local.yml — fill in real credentials before running the agent.")
+
+# Open the multi-root workspace in VS Code
+setup-editor:
+    code orbweaver.code-workspace || echo "VS Code not found — open orbweaver.code-workspace manually."
+
+# Install pre-commit hooks
+install-hooks: venv
+    {{python}} -m pre_commit install
+
 # ─── dev utilities ───────────────────────────────────────────────────────────
 
 # Verify all new module imports are valid (no Diode SDK required)

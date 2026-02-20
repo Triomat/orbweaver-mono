@@ -1,0 +1,50 @@
+{
+  "name": "orbweaver",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "args": {
+      "GO_VERSION": "1.24.6"
+    }
+  },
+
+  // Mount orbweaver repo + peer repos the container needs
+  "workspaceFolder": "/workspace/orbweaver",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace/orbweaver,type=bind,consistency=cached",
+  "mounts": [
+    "source=${localWorkspaceFolder}/../../netbox-discovery,target=/workspace/netbox-discovery,type=bind,consistency=cached",
+    "source=${localWorkspaceFolder}/../../orb,target=/workspace/orb,type=bind,consistency=cached"
+  ],
+
+  // Install Python deps after container creation
+  "postCreateCommand": "just install",
+
+  // VS Code extensions
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "charliermarsh.ruff",
+        "golang.go",
+        "eamodio.gitlens",
+        "redhat.vscode-yaml",
+        "tamasfe.even-better-toml"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/workspace/orbweaver/.venv/bin/python",
+        "editor.formatOnSave": true,
+        "[python]": {
+          "editor.defaultFormatter": "charliermarsh.ruff",
+          "editor.formatOnSave": true,
+          "editor.codeActionsOnSave": {
+            "source.fixAll.ruff": "explicit",
+            "source.organizeImports.ruff": "explicit"
+          }
+        },
+        "ruff.lineLength": 140,
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  },
+
+  "remoteUser": "vscode"
+}

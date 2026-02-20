@@ -34,14 +34,14 @@ policies:
           role: loopback
     scope:
       - collector: cisco_ios          # orbweaver vendor collector path
-        hostname: 192.168.110.10
-        username: cheddar
-        password: 'DimCK#2016!'
+        hostname: CHANGEME
+        username: CHANGEME
+        password: 'CHANGEME'
         optional_args:
           ssh_config_file: /opt/orb/ssh-napalm.conf
       - collector: cisco_ios
-        hostname: 192.168.10.75
-        username: cheddar
-        password: 'DimCK#2016!'
+        hostname: CHANGEME
+        username: CHANGEME
+        password: 'CHANGEME'
         optional_args:
           ssh_config_file: /opt/orb/ssh-napalm.conf

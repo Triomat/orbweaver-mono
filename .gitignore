@@ -11,3 +11,11 @@ __pycache__/
 .cursor.md
 
 .DS_Store
+
+# Virtual environments
+.venv/
+venv/
+
+# Local secret files — never commit these
+docker/.env
+docker/agent.local.yml

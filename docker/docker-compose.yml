@@ -29,6 +29,6 @@ services:
       dockerfile: docker/Dockerfile.agent
     command: run -c /opt/orb/agent.yml
     volumes:
-      - ./agent.yml:/opt/orb/agent.yml:ro
+      - ./agent.local.yml:/opt/orb/agent.yml:ro
       - ../../orb/ssh-napalm.conf:/opt/orb/ssh-napalm.conf:ro
     restart: unless-stopped

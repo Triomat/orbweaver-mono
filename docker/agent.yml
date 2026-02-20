@@ -5,9 +5,9 @@ orb:
     device_discovery:
     common:
       diode:
-        target: grpc://192.168.11.90:8080/diode
+        target: grpc://CHANGEME:8080/diode
         client_id: diode-ingest
-        client_secret: 9xw8Wi78SOQBs+7n7+0hXqDXUDSQejvCE+N17V8T5gQ=
+        client_secret: CHANGEME
         agent_name: orbweaver01
   policies:
     device_discovery:
@@ -46,8 +46,8 @@ orb:
               role: loopback
         scope:
           - collector: cisco_ios
-            hostname: 192.168.10.75
-            username: cheddar
-            password: 'DimCK#2016!'
+            hostname: CHANGEME
+            username: CHANGEME
+            password: 'CHANGEME'
             optional_args:
               ssh_config_file: /opt/orb/ssh-napalm.conf

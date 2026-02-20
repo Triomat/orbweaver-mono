@@ -1,0 +1,87 @@
+{
+  "folders": [
+    {
+      "name": "orbweaver",
+      "path": "."
+    },
+    {
+      "name": "netbox-discovery",
+      "path": "../../netbox-discovery"
+    }
+  ],
+  "settings": {
+    "python.defaultInterpreterPath": "${workspaceFolder:orbweaver}/.venv/bin/python",
+    "editor.formatOnSave": true,
+    "[python]": {
+      "editor.defaultFormatter": "charliermarsh.ruff",
+      "editor.formatOnSave": true,
+      "editor.codeActionsOnSave": {
+        "source.fixAll.ruff": "explicit",
+        "source.organizeImports.ruff": "explicit"
+      }
+    },
+    "ruff.lineLength": 140,
+    "files.exclude": {
+      "**/__pycache__": true,
+      "**/*.egg-info": true,
+      "**/.pytest_cache": true,
+      "**/.ruff_cache": true,
+      ".venv": true
+    }
+  },
+  "extensions": {
+    "recommendations": [
+      "ms-python.python",
+      "charliermarsh.ruff",
+      "golang.go",
+      "eamodio.gitlens",
+      "redhat.vscode-yaml",
+      "tamasfe.even-better-toml"
+    ]
+  },
+  "tasks": {
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "just install",
+        "type": "shell",
+        "command": "just install",
+        "options": { "cwd": "${workspaceFolder:orbweaver}" },
+        "group": "build",
+        "presentation": { "panel": "shared", "reveal": "always" }
+      },
+      {
+        "label": "just test",
+        "type": "shell",
+        "command": "just test",
+        "options": { "cwd": "${workspaceFolder:orbweaver}" },
+        "group": { "kind": "test", "isDefault": true },
+        "presentation": { "panel": "shared", "reveal": "always" }
+      },
+      {
+        "label": "just lint",
+        "type": "shell",
+        "command": "just lint",
+        "options": { "cwd": "${workspaceFolder:orbweaver}" },
+        "group": "build",
+        "presentation": { "panel": "shared", "reveal": "always" }
+      },
+      {
+        "label": "just orbweaver-up",
+        "type": "shell",
+        "command": "just orbweaver-up",
+        "options": { "cwd": "${workspaceFolder:orbweaver}" },
+        "group": "build",
+        "presentation": { "panel": "shared", "reveal": "always" }
+      },
+      {
+        "label": "just orbweaver-down",
+        "type": "shell",
+        "command": "just orbweaver-down",
+        "options": { "cwd": "${workspaceFolder:orbweaver}" },
+        "group": "build",
+        "presentation": { "panel": "shared", "reveal": "always" }
+      }
+    ]
+  }
+}
