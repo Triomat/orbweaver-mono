@@ -33,6 +33,7 @@ dependencies = [
     "netboxlabs-diode-sdk~=1.10",
     "pydantic~=2.9",
     "python-dotenv~=1.0",
+    "dacite~=1.8",
     "requests~=2.31",
     "uvicorn~=0.32",
     "opentelemetry-api~=1.32",
@@ -56,6 +57,7 @@ packages = [
     "device_discovery.policy",
     "device_discovery.models",
     "device_discovery.collectors",
+    "device_discovery.review",
 ]
 package-data = {"device_discovery" = ["**/*", "policy/**"]}
 exclude-package-data = {device_discovery = ["tests/*"]}
