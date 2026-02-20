@@ -70,6 +70,61 @@ lint-dd:
 # Run ruff on all components
 lint: lint-dd
 
+# ─── integration stack ───────────────────────────────────────────────────────
+
+# Build and start orbweaver standalone (API on :8072)
+orbweaver-up:
+    docker compose -f docker/docker-compose.yml --env-file docker/.env up -d --build discovery
+
+# Build and start orbweaver inside orb-agent
+orbweaver-up-agent:
+    docker compose -f docker/docker-compose.yml --env-file docker/.env up -d --build agent
+
+# Stop and remove all orbweaver containers
+orbweaver-down:
+    docker compose -f docker/docker-compose.yml down
+
+# Stream logs from orbweaver standalone
+orbweaver-logs:
+    docker compose -f docker/docker-compose.yml logs -f discovery
+
+# Stream logs from orbweaver inside orb-agent
+orbweaver-logs-agent:
+    docker compose -f docker/docker-compose.yml logs -f agent
+
+# POST the example policy to orbweaver standalone
+orbweaver-push-policy:
+    curl -s -o /dev/null -w "%{http_code}" \
+        -X POST -H "Content-Type: application/x-yaml" \
+        --data-binary @docker/policy-example.yaml \
+        http://localhost:8072/api/v1/policies
+
+# Preview what cleanup would delete (no changes made)
+orbweaver-cleanup-dry:
+    @export $(grep -v '^#' docker/.env | xargs) && \
+        {{python}} docker/netbox-cleanup.py --dry-run
+
+# Delete all orbweaver-ingested objects from NetBox (tagged 'discovered')
+orbweaver-cleanup:
+    @export $(grep -v '^#' docker/.env | xargs) && \
+        {{python}} docker/netbox-cleanup.py
+
+# ─── git workflows ───────────────────────────────────────────────────────────
+
+# Run tests, push current branch to origin, then merge into develop
+promote-to-dev: test
+    #!/usr/bin/env bash
+    set -euo pipefail
+    branch=$(git rev-parse --abbrev-ref HEAD)
+    echo "Pushing branch '${branch}' to origin..."
+    git push origin "${branch}"
+    echo "Merging '${branch}' into develop..."
+    git checkout develop
+    git merge --no-ff "${branch}" -m "Merge branch '${branch}' into develop"
+    git push origin develop
+    git checkout "${branch}"
+    echo "Done. '${branch}' merged into develop and pushed."
+
 # ─── dev utilities ───────────────────────────────────────────────────────────
 
 # Verify all new module imports are valid (no Diode SDK required)

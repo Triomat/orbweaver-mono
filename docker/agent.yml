@@ -1,0 +1,53 @@
+orb:
+  config_manager:
+    active: local
+  backends:
+    device_discovery:
+    common:
+      diode:
+        target: grpc://192.168.11.90:8080/diode
+        client_id: diode-ingest
+        client_secret: 9xw8Wi78SOQBs+7n7+0hXqDXUDSQejvCE+N17V8T5gQ=
+        agent_name: orbweaver01
+  policies:
+    device_discovery:
+      discovery_1:
+        config:
+          schedule: "* * * * *"
+          defaults:
+            site: orbweaver
+            role: router
+            tags:
+              - discovered
+              - orbweaver
+            device:
+              description: "Auto-discovered"
+            interface:
+              description: "Auto-discovered interface"
+              if_type: "other"
+              interface_patterns:
+                - match: "^(GigabitEthernet|Gi)\\d+"
+                  type: "1000base-t"
+                - match: "^(TenGigabitEthernet|TenGig|Te)\\S+"
+                  type: "10gbase-x-sfpp"
+                - match: "^(FastEthernet|Fa)\\d+"
+                  type: "100base-tx"
+                - match: "^(Port-channel|Po)\\d+"
+                  type: "lag"
+                - match: "^Loopback\\d+"
+                  type: "virtual"
+                - match: "^Tunnel\\d+"
+                  type: "virtual"
+                - match: "^Vlan\\d+"
+                  type: "virtual"
+                - match: "^Serial\\S+"
+                  type: "t1"
+            ip_address:
+              role: loopback
+        scope:
+          - collector: cisco_ios
+            hostname: 192.168.10.75
+            username: cheddar
+            password: 'DimCK#2016!'
+            optional_args:
+              ssh_config_file: /opt/orb/ssh-napalm.conf

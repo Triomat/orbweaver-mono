@@ -1,0 +1,47 @@
+policies:
+  orbweaver-cisco-test:
+    config:
+      defaults:
+        site: New York NY
+        role: router
+        tags:
+          - discovered
+
+          - orbweaver
+        device:
+          description: "Auto-discovered"
+        interface:
+          description: "Auto-discovered interface"
+          if_type: "other"
+          interface_patterns:
+            - match: "^(GigabitEthernet|Gi)\\d+"
+              type: "1000base-t"
+            - match: "^(TenGigabitEthernet|TenGig|Te)\\S+"
+              type: "10gbase-x-sfpp"
+            - match: "^(FastEthernet|Fa)\\d+"
+              type: "100base-tx"
+            - match: "^(Port-channel|Po)\\d+"
+              type: "lag"
+            - match: "^Loopback\\d+"
+              type: "virtual"
+            - match: "^Tunnel\\d+"
+              type: "virtual"
+            - match: "^Vlan\\d+"
+              type: "virtual"
+            - match: "^Serial\\S+"
+              type: "t1"
+        ip_address:
+          role: loopback
+    scope:
+      - collector: cisco_ios          # orbweaver vendor collector path
+        hostname: 192.168.110.10
+        username: cheddar
+        password: 'DimCK#2016!'
+        optional_args:
+          ssh_config_file: /opt/orb/ssh-napalm.conf
+      - collector: cisco_ios
+        hostname: 192.168.10.75
+        username: cheddar
+        password: 'DimCK#2016!'
+        optional_args:
+          ssh_config_file: /opt/orb/ssh-napalm.conf

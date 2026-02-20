@@ -13,7 +13,8 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from napalm import get_network_driver
 
-from device_discovery.client import Client
+from device_discovery.client import Client, MAX_MESSAGE_SIZE_BYTES
+from netboxlabs.diode.sdk import create_message_chunks, estimate_message_size
 from device_discovery.discovery import discover_device_driver, supported_drivers
 from device_discovery.metrics import get_metric
 from device_discovery.policy.models import Config, Defaults, Napalm, Options, Status
@@ -239,7 +240,35 @@ class PolicyRunner:
 
         entities = translate_single_device(normalized_device, config.defaults or Defaults())
         metadata = {"policy_name": self.name, "hostname": sanitized_hostname}
-        Client().ingest(metadata, entities)
+
+        # Bypass Client().ingest() — that calls translate_data() which expects a dict.
+        # Our entities are already translated; call the Diode client directly.
+        client = Client()
+        entities_list = list(entities)
+        entity_count = len(entities_list)
+        size_bytes = estimate_message_size(entities_list)
+
+        if size_bytes > MAX_MESSAGE_SIZE_BYTES:
+            chunks = create_message_chunks(entities_list)
+            for i, chunk in enumerate(chunks, 1):
+                response = client.diode_client.ingest(entities=chunk, metadata=metadata)
+                if response.errors:
+                    raise RuntimeError(
+                        f"Ingestion failed for {sanitized_hostname} chunk {i}: {response.errors}"
+                    )
+            logger.info(
+                f"Hostname {sanitized_hostname}: Successfully ingested {entity_count} entities "
+                f"in {len(chunks)} chunks"
+            )
+        else:
+            response = client.diode_client.ingest(entities=entities_list, metadata=metadata)
+            if response.errors:
+                raise RuntimeError(
+                    f"Ingestion failed for {sanitized_hostname}: {response.errors}"
+                )
+            logger.info(
+                f"Hostname {sanitized_hostname}: Successfully ingested {entity_count} entities"
+            )
 
         discovery_success = get_metric("discovery_success")
         if discovery_success:

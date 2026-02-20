@@ -1,0 +1,6 @@
+FROM netboxlabs/orb-agent:latest
+
+# Replace the upstream device-discovery package with orbweaver's build
+COPY device-discovery/ /tmp/device-discovery/
+RUN pip install --no-cache-dir --upgrade /tmp/device-discovery && \
+    rm -rf /tmp/device-discovery

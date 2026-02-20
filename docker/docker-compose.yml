@@ -1,0 +1,34 @@
+name: orbweaver
+
+services:
+  # Standalone device-discovery — accepts policy POSTs on :8072
+  discovery:
+    build:
+      context: ../device-discovery
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8072:8072"
+    command: >
+      device-discovery
+        -t grpc://${DIODE_HOST}:${DIODE_PORT}/diode
+        -c ${DIODE_CLIENT_ID}
+        -k ${DIODE_CLIENT_SECRET}
+    environment:
+      - DIODE_HOST=${DIODE_HOST}
+      - DIODE_PORT=${DIODE_PORT}
+      - DIODE_CLIENT_ID=${DIODE_CLIENT_ID}
+      - DIODE_CLIENT_SECRET=${DIODE_CLIENT_SECRET}
+    volumes:
+      - ../../orb/ssh-napalm.conf:/opt/orb/ssh-napalm.conf:ro
+    restart: unless-stopped
+
+  # orb-agent with orbweaver's device-discovery swapped in
+  agent:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.agent
+    command: run -c /opt/orb/agent.yml
+    volumes:
+      - ./agent.yml:/opt/orb/agent.yml:ro
+      - ../../orb/ssh-napalm.conf:/opt/orb/ssh-napalm.conf:ro
+    restart: unless-stopped
