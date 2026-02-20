@@ -22,6 +22,9 @@ from device_discovery.policy.portscan import (
     find_reachable_hosts,
 )
 from device_discovery.policy.run import RunStatus, RunStore
+from device_discovery.collectors.registry import get_collector, list_collectors
+from device_discovery.collectors.base import CollectorConfig
+from device_discovery.diode_translate import translate_single_device
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -159,11 +162,98 @@ class PolicyRunner:
                 return False
         return True
 
+    def _select_collector(self, scope: Napalm):
+        """
+        Select a vendor collector based on the scope's collector or driver field.
+
+        Returns (collector_class, config_class) if a named collector is available,
+        or None if the generic NAPALM path should be used.
+        """
+        # Explicit collector name takes priority
+        if scope.collector:
+            try:
+                return get_collector(scope.collector)
+            except KeyError:
+                available = list_collectors()
+                logger.warning(
+                    f"Policy {self.name}: Unknown collector '{scope.collector}'. "
+                    f"Available: {available}. Falling back to generic NAPALM path."
+                )
+                return None
+
+        # Auto-select by driver name if it matches a registered collector
+        if scope.driver:
+            try:
+                return get_collector(scope.driver)
+            except KeyError:
+                pass  # No matching collector, use generic NAPALM path
+
+        return None
+
+    def _collect_device_data_via_collector(
+        self, scope: Napalm, sanitized_hostname: str, config: Config
+    ) -> None:
+        """
+        Collect device data using the vendor collector framework (COM path).
+
+        Uses the selected vendor collector to produce a NormalizedDevice,
+        then translates it to Diode entities via diode_translate.
+        """
+        import dataclasses
+
+        collector_class, config_class = self._select_collector(scope)
+
+        # Determine which field names the config_class accepts
+        config_field_names = {f.name for f in dataclasses.fields(config_class)}
+
+        # Build collector kwargs from the common fields
+        collector_kwargs: dict = {
+            "hosts": [scope.hostname],
+            "username": scope.username,
+            "password": scope.password,
+            "site_name": config.defaults.site if config.defaults and config.defaults.site else "",
+            "timeout": scope.timeout,
+        }
+
+        # Inject driver if the config class supports it (NapalmConfig subclasses)
+        if "driver" in config_field_names and scope.driver:
+            collector_kwargs["driver"] = scope.driver
+
+        # Inject optional_args if supported
+        if "optional_args" in config_field_names and scope.optional_args:
+            collector_kwargs["optional_args"] = scope.optional_args
+
+        # Filter to only accepted fields
+        collector_config = config_class(**{
+            k: v for k, v in collector_kwargs.items() if k in config_field_names
+        })
+
+        collector = collector_class(collector_config)
+
+        logger.info(
+            f"Policy {self.name}, Hostname {sanitized_hostname}: "
+            f"Collecting via {collector.vendor_name} collector"
+        )
+
+        normalized_device = collector.discover_single(sanitized_hostname)
+
+        entities = translate_single_device(normalized_device, config.defaults or Defaults())
+        metadata = {"policy_name": self.name, "hostname": sanitized_hostname}
+        Client().ingest(metadata, entities)
+
+        discovery_success = get_metric("discovery_success")
+        if discovery_success:
+            discovery_success.add(1, {"policy": self.name})
+
     def _collect_device_data(
         self, scope: Napalm, sanitized_hostname: str, config: Config
     ):
         """
         Connect to device and collect data.
+
+        If a vendor collector is configured (scope.collector) or auto-selected
+        by driver name, delegates to the COM collector framework. Otherwise
+        falls back to the existing generic NAPALM path.
 
         Args:
         ----
@@ -172,6 +262,13 @@ class PolicyRunner:
             config: Configuration data containing site information.
 
         """
+        # Try vendor collector path first
+        collector_entry = self._select_collector(scope)
+        if collector_entry is not None:
+            self._collect_device_data_via_collector(scope, sanitized_hostname, config)
+            return
+
+        # Fallback: existing generic NAPALM path
         np_driver = get_network_driver(scope.driver)
         logger.info(
             f"Policy {self.name}, Hostname {sanitized_hostname}: Getting information"
