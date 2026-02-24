@@ -31,6 +31,15 @@ export interface ReviewSession extends ReviewSummary {
 
 // ── Discovery (COM) ────────────────────────────────────────────────────────
 
+export interface NormalizedLLDPNeighbor {
+  local_interface: string
+  neighbor_device_name: string
+  neighbor_interface: string
+  neighbor_chassis_mac: string
+  neighbor_mgmt_ip: string
+  neighbor_system_description: string
+}
+
 export interface NormalizedDevice {
   name: string
   serial_number: string | null
@@ -41,6 +50,7 @@ export interface NormalizedDevice {
   status: string
   interfaces: NormalizedInterface[]
   vlans: NormalizedVLAN[]
+  lldp_neighbors: NormalizedLLDPNeighbor[]
 }
 
 export interface NormalizedDeviceType {
@@ -56,6 +66,10 @@ export interface NormalizedManufacturer {
 export interface NormalizedPlatform {
   name: string
   manufacturer: NormalizedManufacturer | null
+  family: string | null
+  version_major: string | null
+  version_minor: string | null
+  version_full: string | null
 }
 
 export interface NormalizedSite {
@@ -71,12 +85,14 @@ export interface NormalizedInterface {
   type: string
   enabled: boolean
   description: string
+  mac_address: string | null
   mtu: number | null
   speed: number | null
-  ip_addresses: NormalizedIPAddress[]
-  vlan_mode: string | null
+  mode: string | null
   untagged_vlan: NormalizedVLAN | null
   tagged_vlans: NormalizedVLAN[]
+  ip_addresses: NormalizedIPAddress[]
+  lag: string | null
 }
 
 export interface NormalizedIPAddress {
