@@ -112,9 +112,10 @@ export function useConfig() {
   const api = useApi()
   const router = useRouter()
 
-  const policy = ref<PolicyForm>(defaultPolicy())
-  const yaml = ref(formToYaml(defaultPolicy()))
-  const activeTab = ref<'form' | 'yaml'>('form')
+  // Use useState so state survives navigation between pages
+  const policy = useState<PolicyForm>('config-policy', () => defaultPolicy())
+  const yaml = useState<string>('config-yaml', () => formToYaml(defaultPolicy()))
+  const activeTab = useState<'form' | 'yaml'>('config-tab', () => 'form')
   const tabError = ref<string | null>(null)
   const discovering = ref(false)
   const discoverError = ref<string | null>(null)
