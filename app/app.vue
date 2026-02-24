@@ -1,3 +1,8 @@
+<script setup lang="ts">
+const api = useApi()
+const { data: status } = await useAsyncData('backend-status', () => api.getStatus().catch(() => null))
+</script>
+
 <template>
   <div class="min-h-screen bg-background text-foreground">
     <header class="border-b bg-card">
@@ -20,7 +25,30 @@
           >
             Reviews
           </NuxtLink>
+          <NuxtLink
+            to="/orb-agent"
+            class="text-muted-foreground transition-colors hover:text-foreground"
+            active-class="text-foreground font-medium"
+          >
+            orb-agent
+          </NuxtLink>
         </nav>
+        <div class="ml-auto flex items-center gap-2">
+          <template v-if="status">
+            <span
+              class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium"
+              :class="status.dry_run
+                ? 'bg-amber-100 text-amber-800'
+                : 'bg-green-100 text-green-800'"
+            >
+              <span
+                class="h-1.5 w-1.5 rounded-full"
+                :class="status.dry_run ? 'bg-amber-500' : 'bg-green-500'"
+              />
+              {{ status.dry_run ? 'dry-run' : status.diode_target }}
+            </span>
+          </template>
+        </div>
       </div>
     </header>
     <main class="container mx-auto px-4 py-6">

@@ -1,9 +1,16 @@
 <script setup lang="ts">
-const { yaml, discovering, discoverError, triggerDiscover } = useConfig()
+import { ref } from 'vue'
+
+const { policy, yaml, activeTab, tabError, discovering, discoverError, switchTab, addDevice, removeDevice, triggerDiscover } = useConfig()
 const api = useApi()
 
 const { data: capData } = await useAsyncData('collectors', () => api.listCollectors())
 const collectors = computed(() => capData.value?.collectors ?? [])
+
+const showPasswords = ref<boolean[]>([])
+function togglePassword(index: number) {
+  showPasswords.value[index] = !showPasswords.value[index]
+}
 </script>
 
 <template>
@@ -12,7 +19,211 @@ const collectors = computed(() => capData.value?.collectors ?? [])
     <div>
       <h1 class="mb-4 text-2xl font-semibold">Discover Devices</h1>
 
-      <div class="mb-4 rounded-lg border bg-muted/30 p-4">
+      <!-- Tab bar -->
+      <div class="mb-4 flex border-b">
+        <button
+          class="px-4 py-2 text-sm font-medium transition-colors"
+          :class="activeTab === 'form'
+            ? 'border-b-2 border-primary text-primary'
+            : 'text-muted-foreground hover:text-foreground'"
+          @click="switchTab('form')"
+        >
+          Form
+        </button>
+        <button
+          class="px-4 py-2 text-sm font-medium transition-colors"
+          :class="activeTab === 'yaml'
+            ? 'border-b-2 border-primary text-primary'
+            : 'text-muted-foreground hover:text-foreground'"
+          @click="switchTab('yaml')"
+        >
+          YAML
+        </button>
+      </div>
+
+      <!-- Tab error banner -->
+      <div
+        v-if="tabError"
+        class="mb-3 rounded-md bg-destructive/10 border border-destructive/30 p-3 text-xs text-destructive"
+      >
+        {{ tabError }}
+      </div>
+
+      <!-- Form tab -->
+      <div v-if="activeTab === 'form'" class="space-y-5">
+        <!-- Policy name -->
+        <div>
+          <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-muted-foreground">Policy Name</label>
+          <input
+            v-model="policy.name"
+            type="text"
+            class="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            placeholder="my-discovery"
+          />
+        </div>
+
+        <!-- Defaults -->
+        <div class="rounded-lg border p-4 space-y-3">
+          <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Defaults</p>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="mb-1 block text-xs text-muted-foreground">Site</label>
+              <input
+                v-model="policy.defaults.site"
+                type="text"
+                class="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                placeholder="DC1"
+              />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs text-muted-foreground">Role</label>
+              <input
+                v-model="policy.defaults.role"
+                type="text"
+                class="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                placeholder="switch"
+              />
+            </div>
+          </div>
+          <div>
+            <label class="mb-1 block text-xs text-muted-foreground">Tags (comma-separated)</label>
+            <input
+              v-model="policy.defaults.tags"
+              type="text"
+              class="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              placeholder="prod, discovered"
+            />
+          </div>
+        </div>
+
+        <!-- Devices -->
+        <div class="space-y-3">
+          <p class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Devices</p>
+
+          <div
+            v-for="(device, index) in policy.devices"
+            :key="index"
+            class="rounded-lg border p-4 space-y-3"
+          >
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-medium text-muted-foreground">Device {{ index + 1 }}</span>
+              <button
+                class="text-xs text-destructive hover:underline"
+                @click="removeDevice(index)"
+              >
+                Remove
+              </button>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="mb-1 block text-xs text-muted-foreground">Hostname *</label>
+                <input
+                  v-model="device.hostname"
+                  type="text"
+                  class="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  placeholder="192.168.1.1"
+                />
+              </div>
+              <div>
+                <label class="mb-1 block text-xs text-muted-foreground">Username *</label>
+                <input
+                  v-model="device.username"
+                  type="text"
+                  class="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  placeholder="admin"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label class="mb-1 block text-xs text-muted-foreground">Password *</label>
+              <div class="relative">
+                <input
+                  v-model="device.password"
+                  :type="showPasswords[index] ? 'text' : 'password'"
+                  class="w-full rounded-md border bg-background px-3 py-2 pr-16 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  class="absolute inset-y-0 right-2 flex items-center text-xs text-muted-foreground hover:text-foreground"
+                  @click="togglePassword(index)"
+                >
+                  {{ showPasswords[index] ? 'Hide' : 'Show' }}
+                </button>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="mb-1 block text-xs text-muted-foreground">Collector</label>
+                <select
+                  v-model="device.collector"
+                  class="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="">— none (use driver) —</option>
+                  <option v-for="c in collectors" :key="c.name" :value="c.name">{{ c.name }}</option>
+                </select>
+              </div>
+              <div v-if="!device.collector">
+                <label class="mb-1 block text-xs text-muted-foreground">Driver (NAPALM)</label>
+                <input
+                  v-model="device.driver"
+                  type="text"
+                  class="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  placeholder="ios"
+                />
+              </div>
+              <div>
+                <label class="mb-1 block text-xs text-muted-foreground">Timeout (s)</label>
+                <input
+                  v-model.number="device.timeout"
+                  type="number"
+                  min="1"
+                  class="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+            </div>
+          </div>
+
+          <button
+            class="w-full rounded-md border border-dashed py-2 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+            @click="addDevice"
+          >
+            + Add device
+          </button>
+        </div>
+      </div>
+
+      <!-- YAML tab -->
+      <div v-if="activeTab === 'yaml'">
+        <label class="mb-1 block text-sm font-medium">Policy YAML</label>
+        <textarea
+          v-model="yaml"
+          class="w-full rounded-md border bg-background font-mono text-xs p-3 focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+          rows="22"
+          spellcheck="false"
+        />
+      </div>
+
+      <!-- Discover error -->
+      <div v-if="discoverError" class="mt-3 rounded-md bg-destructive/10 border border-destructive/30 p-3 text-xs text-destructive font-mono whitespace-pre-wrap">
+        {{ discoverError }}
+      </div>
+
+      <button
+        :disabled="discovering"
+        class="mt-4 w-full rounded-md bg-primary py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+        @click="triggerDiscover"
+      >
+        {{ discovering ? 'Starting discovery…' : 'Discover Now' }}
+      </button>
+    </div>
+
+    <!-- Right: reference -->
+    <div class="space-y-4">
+      <div class="rounded-lg border bg-muted/30 p-4">
         <p class="text-xs text-muted-foreground mb-2 font-medium uppercase tracking-wide">
           Registered Collectors
         </p>
@@ -30,29 +241,6 @@ const collectors = computed(() => capData.value?.collectors ?? [])
         </div>
       </div>
 
-      <label class="mb-1 block text-sm font-medium">Policy YAML</label>
-      <textarea
-        v-model="yaml"
-        class="w-full rounded-md border bg-background font-mono text-xs p-3 focus:outline-none focus:ring-2 focus:ring-ring resize-none"
-        rows="22"
-        spellcheck="false"
-      />
-
-      <div v-if="discoverError" class="mt-3 rounded-md bg-destructive/10 border border-destructive/30 p-3 text-xs text-destructive font-mono whitespace-pre-wrap">
-        {{ discoverError }}
-      </div>
-
-      <button
-        :disabled="discovering"
-        class="mt-4 w-full rounded-md bg-primary py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
-        @click="triggerDiscover"
-      >
-        {{ discovering ? 'Starting discovery…' : 'Discover Now' }}
-      </button>
-    </div>
-
-    <!-- Right: YAML reference -->
-    <div class="space-y-4">
       <div class="rounded-lg border p-4">
         <h2 class="mb-2 font-medium text-sm">Policy YAML format</h2>
         <pre class="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed font-mono">policies:
