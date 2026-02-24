@@ -26,6 +26,16 @@ from device_discovery.review.store import ReviewStore
 from device_discovery.version import version_semver
 
 
+class ReviewCounts(BaseModel):
+    """Summary counts across all review sessions."""
+
+    total: int = 0
+    pending: int = 0
+    ready: int = 0
+    ingested: int = 0
+    failed: int = 0
+
+
 class StatusResponse(BaseModel):
     """Enhanced status response with policy runs."""
 
@@ -34,6 +44,7 @@ class StatusResponse(BaseModel):
     policies: list[PolicyStatus] = []
     diode_target: str | None = None
     dry_run: bool = False
+    reviews: ReviewCounts = ReviewCounts()
 
 
 manager = PolicyManager()
@@ -175,12 +186,31 @@ def read_status():
     policy_statuses = manager.get_policy_statuses()
 
     _diode_target = os.environ.get("DIODE_TARGET") or None
+
+    # Review session counts
+    reviews = ReviewCounts()
+    try:
+        sessions = review_store.list_all()
+        reviews.total = len(sessions)
+        for s in sessions:
+            if s.status == ReviewStatus.PENDING:
+                reviews.pending += 1
+            elif s.status == ReviewStatus.READY:
+                reviews.ready += 1
+            elif s.status == ReviewStatus.INGESTED:
+                reviews.ingested += 1
+            elif s.status == ReviewStatus.FAILED:
+                reviews.failed += 1
+    except Exception:
+        pass
+
     response = StatusResponse(
         version=version_semver(),
         up_time_seconds=round(time_diff.total_seconds()),
         policies=policy_statuses,
         diode_target=_diode_target,
         dry_run=_diode_target is None,
+        reviews=reviews,
     )
 
     return response.model_dump()
@@ -548,6 +578,65 @@ def ingest_review(review_id: str, body: IngestRequest):
 
 _orb_agent_yml = os.environ.get("ORBWEAVER_ORB_AGENT_YML", "")
 _orb_container = os.environ.get("ORBWEAVER_ORB_CONTAINER", "orb-agent")
+
+
+@app.get("/api/v1/orb-agent/status")
+def get_orb_agent_status():
+    """
+    Query the orb-agent container's running state and internal API status.
+
+    Returns container state from docker inspect and, if running, the
+    device-discovery /api/v1/status from inside the container.
+    """
+    import json as _json
+
+    result = {
+        "container": _orb_container,
+        "running": False,
+        "state": None,
+        "discovery_status": None,
+        "error": None,
+    }
+
+    # 1. Container state via docker inspect
+    try:
+        proc = subprocess.run(
+            ["docker", "inspect", "--format", "{{json .State}}", _orb_container],
+            capture_output=True, text=True, timeout=10,
+        )
+        if proc.returncode == 0:
+            state = _json.loads(proc.stdout.strip())
+            result["running"] = state.get("Running", False)
+            result["state"] = state.get("Status", "unknown")
+        else:
+            result["error"] = proc.stderr.strip() or "container not found"
+            return result
+    except Exception as exc:
+        result["error"] = str(exc)
+        return result
+
+    # 2. If running, fetch internal API status via docker exec
+    if result["running"]:
+        try:
+            _py_status = (
+                "import urllib.request, sys\n"
+                "try:\n"
+                "  resp = urllib.request.urlopen('http://localhost:8072/api/v1/status', timeout=5)\n"
+                "  sys.stdout.write(resp.read().decode())\n"
+                "except Exception as e:\n"
+                "  sys.stderr.write(str(e))\n"
+                "  sys.exit(1)\n"
+            )
+            proc = subprocess.run(
+                ["docker", "exec", _orb_container, "python3", "-c", _py_status],
+                capture_output=True, text=True, timeout=15,
+            )
+            if proc.returncode == 0 and proc.stdout.strip():
+                result["discovery_status"] = _json.loads(proc.stdout.strip())
+        except Exception:
+            pass  # Non-critical; we still return container state
+
+    return result
 
 
 @app.get("/api/v1/orb-agent/config")

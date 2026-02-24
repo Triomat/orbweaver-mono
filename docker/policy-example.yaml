@@ -6,7 +6,6 @@ policies:
         role: router
         tags:
           - discovered
-
           - orbweaver
         device:
           description: "Auto-discovered"
