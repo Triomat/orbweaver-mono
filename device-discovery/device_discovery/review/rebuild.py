@@ -5,6 +5,7 @@ Uses dacite for clean enum coercion.
 
 from __future__ import annotations
 
+from datetime import datetime
 from enum import Enum
 
 import dacite
@@ -12,7 +13,14 @@ import dacite
 from device_discovery.models.common import NormalizedDevice
 
 
-_DACITE_CONFIG = dacite.Config(cast=[Enum])
+def _parse_datetime(value: str) -> datetime:
+    return datetime.fromisoformat(value)
+
+
+_DACITE_CONFIG = dacite.Config(
+    cast=[Enum],
+    type_hooks={datetime: _parse_datetime},
+)
 
 
 def device_from_dict(data: dict) -> NormalizedDevice:

@@ -368,7 +368,7 @@ def build_lldp_from_napalm(
                     neighbor_device_name=neighbor_name,
                     neighbor_interface=neighbor_iface,
                     neighbor_chassis_mac=chassis_mac,
-                    neighbor_mgmt_ip=entry.get("remote_system_capab", ""),
+                    neighbor_mgmt_ip=entry.get("remote_management_address", ""),
                     neighbor_system_description=entry.get("remote_system_description", ""),
                 )
             )

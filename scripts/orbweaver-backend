@@ -12,6 +12,8 @@ PORT="${ORBWEAVER_PORT:-8073}"
 REVIEW_DIR="${ORBWEAVER_REVIEW_DIR:-/tmp/orbweaver-reviews}"
 DRYRUN_DIR="${ORBWEAVER_DRYRUN_DIR:-/tmp/orbweaver-dryrun}"
 DIODE_TARGET="${ORBWEAVER_DIODE_TARGET:-}"
+DIODE_CLIENT_ID="${ORBWEAVER_DIODE_CLIENT_ID:-}"
+DIODE_CLIENT_SECRET="${ORBWEAVER_DIODE_CLIENT_SECRET:-}"
 
 _pid() {
     [[ -f "$PID_FILE" ]] && cat "$PID_FILE" || echo ""
@@ -34,6 +36,9 @@ cmd_start() {
     local extra_args=()
     if [[ -n "$DIODE_TARGET" ]]; then
         extra_args+=(--diode-target "$DIODE_TARGET")
+        if [[ -n "$DIODE_CLIENT_ID" && -n "$DIODE_CLIENT_SECRET" ]]; then
+            extra_args+=(--diode-client-id "$DIODE_CLIENT_ID" --diode-client-secret "$DIODE_CLIENT_SECRET")
+        fi
     else
         extra_args+=(--dry-run --dry-run-output-dir "$DRYRUN_DIR")
         echo "  (dry-run mode — set ORBWEAVER_DIODE_TARGET to ingest for real)"
@@ -41,6 +46,7 @@ cmd_start() {
 
     ORBWEAVER_REVIEW_DIR="$REVIEW_DIR" \
     ORBWEAVER_CORS_ORIGINS="${ORBWEAVER_CORS_ORIGINS:-*}" \
+    DIODE_TARGET="$DIODE_TARGET" \
         "$VENV/device-discovery" \
         --host 0.0.0.0 \
         --port "$PORT" \
