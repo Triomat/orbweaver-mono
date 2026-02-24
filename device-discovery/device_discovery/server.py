@@ -4,6 +4,7 @@
 
 
 import os
+import subprocess
 import time
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -31,6 +32,8 @@ class StatusResponse(BaseModel):
     version: str
     up_time_seconds: int
     policies: list[PolicyStatus] = []
+    diode_target: str | None = None
+    dry_run: bool = False
 
 
 manager = PolicyManager()
@@ -171,10 +174,13 @@ def read_status():
     # Get policy statuses with run history
     policy_statuses = manager.get_policy_statuses()
 
+    _diode_target = os.environ.get("DIODE_TARGET") or None
     response = StatusResponse(
         version=version_semver(),
         up_time_seconds=round(time_diff.total_seconds()),
         policies=policy_statuses,
+        diode_target=_diode_target,
+        dry_run=_diode_target is None,
     )
 
     return response.model_dump()
@@ -534,3 +540,97 @@ def ingest_review(review_id: str, body: IngestRequest):
         skipped_count=skipped,
         errors=ingest_errors,
     ).model_dump()
+
+
+# ---------------------------------------------------------------------------
+# NEW: orb-agent config management (showcase workaround)
+# ---------------------------------------------------------------------------
+
+_orb_agent_yml = os.environ.get("ORBWEAVER_ORB_AGENT_YML", "")
+_orb_container = os.environ.get("ORBWEAVER_ORB_CONTAINER", "orb-agent")
+
+
+@app.get("/api/v1/orb-agent/config")
+def get_orb_agent_config():
+    """Return current orb-agent YAML config from disk."""
+    if not _orb_agent_yml:
+        raise HTTPException(status_code=404, detail="ORBWEAVER_ORB_AGENT_YML not configured")
+    try:
+        with open(_orb_agent_yml) as f:
+            content = f.read()
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"File not found: {_orb_agent_yml}")
+    return {"yaml": content, "path": _orb_agent_yml, "container": _orb_container}
+
+
+@app.post("/api/v1/orb-agent/config")
+async def set_orb_agent_config(request: Request):
+    """Write a new orb-agent YAML config to disk and restart the container."""
+    if not _orb_agent_yml:
+        raise HTTPException(status_code=404, detail="ORBWEAVER_ORB_AGENT_YML not configured")
+    body = await request.body()
+    body_str = body.decode()
+    try:
+        yaml.safe_load(body_str)
+    except yaml.YAMLError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid YAML: {e}")
+    with open(_orb_agent_yml, "w") as f:
+        f.write(body_str)
+    result = subprocess.run(
+        ["docker", "restart", _orb_container],
+        capture_output=True, text=True, timeout=30,
+    )
+    if result.returncode != 0:
+        raise HTTPException(status_code=500, detail=f"docker restart failed: {result.stderr.strip()}")
+    return {"detail": f"Config written and container '{_orb_container}' restarted"}
+
+
+@app.post("/api/v1/orb-agent/trigger")
+async def trigger_orb_agent(request: Request):
+    """
+    Force the orb-agent to run a policy immediately by POSTing YAML to its
+    internal API via docker exec (bypassing the missing external port).
+    Deletes any existing policy of the same name first to force a fresh run.
+    """
+    import json as _json
+    body = await request.body()
+    body_str = body.decode()
+    try:
+        doc = yaml.safe_load(body_str)
+        policies = (doc or {}).get("policies", {})
+        if not policies:
+            raise HTTPException(status_code=400, detail="No policies found in YAML")
+        policy_name = next(iter(policies))
+    except yaml.YAMLError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid YAML: {e}")
+
+    _py_delete = (
+        f"import urllib.request, urllib.error\n"
+        f"req = urllib.request.Request('http://localhost:8072/api/v1/policies/{policy_name}', method='DELETE')\n"
+        f"try: urllib.request.urlopen(req)\n"
+        f"except urllib.error.HTTPError: pass\n"
+    )
+    subprocess.run(
+        ["docker", "exec", _orb_container, "python3", "-c", _py_delete],
+        capture_output=True, timeout=10,
+    )
+
+    _py_post = (
+        "import urllib.request, sys\n"
+        "data = sys.stdin.buffer.read()\n"
+        "req = urllib.request.Request('http://localhost:8072/api/v1/policies', data=data,"
+        " headers={'Content-Type': 'application/x-yaml'}, method='POST')\n"
+        "print(urllib.request.urlopen(req).read().decode())\n"
+    )
+    result = subprocess.run(
+        ["docker", "exec", "-i", _orb_container, "python3", "-c", _py_post],
+        input=body,
+        capture_output=True,
+        timeout=30,
+    )
+    if result.returncode != 0:
+        raise HTTPException(status_code=500, detail=result.stderr.decode().strip() or "docker exec failed")
+    try:
+        return _json.loads(result.stdout)
+    except Exception:
+        return {"detail": result.stdout.decode().strip()}

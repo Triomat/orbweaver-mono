@@ -144,3 +144,89 @@ pytest tests/
 ```
 
 Existing upstream tests should pass unchanged (the legacy NAPALM path is untouched).
+
+---
+
+## Showcase: orbweaver vs standard orb-agent (side-by-side)
+
+### Running services
+
+| Service | What it is | Port | Started by |
+|---|---|---|---|
+| orbweaver backend | Local dev (full orbweaver with review workflow) | 8073 | `just start grpc://...` |
+| orbweaver-ui | Nuxt dev server | 3000 | `just start` |
+| orbweaver-device-discovery-1 | Docker standalone (orbweaver fork, no review) | 8072 | `just docker-up` |
+| orbweaver-agent-1 | Docker orbweaver agent | — | `just docker-up-agent` |
+| orb-agent | Standard netboxlabs orb-agent (external container) | internal only | `docker start orb-agent` |
+
+### The two paths being compared
+
+**Standard orb-agent** (`netboxlabs/orb-agent:latest`, container `orb-agent`):
+- Configured via `/home/cheddar/projects/netbox/orb/agent.yml`
+- Scheduled cron is set to `0 0 1 1 *` (disabled for showcase — manual only)
+- Internal device-discovery API at `localhost:8072` inside the container (NOT exposed externally)
+- Triggered from orbweaver-ui `/orb-agent` page via `POST /api/v1/orb-agent/trigger`
+  → orbweaver backend uses `docker exec -i orb-agent python3 -c "..."` to POST to internal API
+- Uses standard NAPALM only (`driver: ios`), ingests directly to NetBox via Diode
+
+**orbweaver** (local dev backend at :8073):
+- Triggered from orbweaver-ui `/config` page → Discover Now
+- Uses vendor collectors (`collector: cisco_ios`) for richer data
+- Stores results in a review session, requires human accept/ingest step
+
+### orb-agent container lifecycle
+
+The `orb-agent` container is NOT managed by orbweaver's docker-compose. It must be started manually:
+```bash
+docker start orb-agent
+```
+If it crashes (exit code 1, "9 is not running"), restart it the same way.
+
+The container reads `/home/cheddar/projects/netbox/orb/agent.yml` (mounted read-only).
+To update the config without the UI: edit the file then `docker restart orb-agent`.
+
+### YAML format differences
+
+**agent.yml** (orb-agent format — nested under `orb.policies.device_discovery`):
+```yaml
+orb:
+  policies:
+    device_discovery:
+      discovery_1:
+        config:
+          schedule: "* * * * *"
+          defaults:
+            site: netboxlabs
+        scope:
+          - driver: ios
+            hostname: 192.168.110.10
+```
+
+**Policy YAML** (standalone API format — what `POST /api/v1/policies` accepts):
+```yaml
+policies:
+  discovery_1:
+    config:
+      defaults:
+        site: netboxlabs
+    scope:
+      - driver: ios
+        hostname: 192.168.110.10
+```
+
+The orbweaver-ui `/orb-agent` page handles this conversion automatically when triggering.
+
+### Key server.py endpoints added for showcase
+
+- `GET  /api/v1/orb-agent/config` — reads `ORBWEAVER_ORB_AGENT_YML` from disk
+- `POST /api/v1/orb-agent/config` — writes file + runs `docker restart ORBWEAVER_ORB_CONTAINER`
+- `POST /api/v1/orb-agent/trigger` — extracts policy from YAML body, docker-execs python3 into orb-agent to DELETE+POST it (forcing immediate run)
+
+Env vars required for these endpoints (set in justfile):
+- `ORBWEAVER_ORB_AGENT_YML=/home/cheddar/projects/netbox/orb/agent.yml`
+- `ORBWEAVER_ORB_CONTAINER=orb-agent`
+
+### Nuxt server proxy
+
+`orbweaver-ui/server/api/orb/[...path].ts` proxies `/api/orb/*` → `NUXT_PUBLIC_ORB_API_BASE/api/v1/*`
+to avoid CORS when the browser checks orb-agent status. Currently only used for status polling.
