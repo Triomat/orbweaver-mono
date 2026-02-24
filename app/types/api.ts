@@ -113,6 +113,46 @@ export interface IngestResponse {
   errors: string[]
 }
 
+// ── Status ────────────────────────────────────────────────────────────────
+
+export interface ReviewCounts {
+  total: number
+  pending: number
+  ready: number
+  ingested: number
+  failed: number
+}
+
+export interface BackendStatus {
+  version: string
+  up_time_seconds: number
+  diode_target: string | null
+  dry_run: boolean
+  reviews: ReviewCounts
+  policies: PolicyStatus[]
+}
+
+export interface PolicyStatus {
+  name: string
+  status: string
+  runs: PolicyRun[]
+}
+
+export interface PolicyRun {
+  target: string
+  status: string
+  started_at: string
+  finished_at: string | null
+}
+
+export interface OrbAgentStatus {
+  container: string
+  running: boolean
+  state: string | null
+  discovery_status: Record<string, unknown> | null
+  error: string | null
+}
+
 // ── Config / Policy ───────────────────────────────────────────────────────
 
 export interface DiscoverJobResponse {

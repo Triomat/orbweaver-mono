@@ -11,6 +11,7 @@ import type {
   IngestRequest,
   IngestResponse,
   ItemStatus,
+  OrbAgentStatus,
   ReviewItem,
   ReviewSession,
   ReviewSummary,
@@ -93,7 +94,11 @@ export function useApi() {
     })
   }
 
-  // ── orb-agent config ──────────────────────────────────────────────────────
+  // ── orb-agent ───────────────────────────────────────────────────────────
+
+  function getOrbAgentStatus(): Promise<OrbAgentStatus> {
+    return $fetch(url('/api/v1/orb-agent/status'))
+  }
 
   function getOrbAgentConfig(): Promise<{ yaml: string; path: string; container: string }> {
     return $fetch(url('/api/v1/orb-agent/config'))
@@ -118,6 +123,7 @@ export function useApi() {
     patchDeviceItem,
     bulkUpdate,
     ingest,
+    getOrbAgentStatus,
     getOrbAgentConfig,
     setOrbAgentConfig,
   }
