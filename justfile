@@ -36,12 +36,23 @@ backend-start:
 backend-stop:
     {{SCRIPTS}}/orbweaver-backend stop
 
-# Restart orbweaver backend
-backend-restart:
-    ORBWEAVER_PORT=8073 \
-    ORBWEAVER_REVIEW_DIR={{REVIEW_DIR}} \
-    ORBWEAVER_ORB_AGENT_YML={{ORB_AGENT_YML}} \
-    ORBWEAVER_ORB_CONTAINER={{ORB_CONTAINER}} \
+# Restart orbweaver backend (sources docker/.env for Diode credentials if present)
+backend-restart target="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    env_file="{{justfile_directory()}}/docker/.env"
+    if [[ -f "$env_file" ]]; then
+        set -a; source "$env_file"; set +a
+    fi
+    export ORBWEAVER_PORT=8073
+    export ORBWEAVER_REVIEW_DIR={{REVIEW_DIR}}
+    export ORBWEAVER_ORB_AGENT_YML={{ORB_AGENT_YML}}
+    export ORBWEAVER_ORB_CONTAINER={{ORB_CONTAINER}}
+    if [[ -n "{{target}}" ]]; then
+        export ORBWEAVER_DIODE_TARGET={{target}}
+        export ORBWEAVER_DIODE_CLIENT_ID="${DIODE_CLIENT_ID:-}"
+        export ORBWEAVER_DIODE_CLIENT_SECRET="${DIODE_CLIENT_SECRET:-}"
+    fi
     {{SCRIPTS}}/orbweaver-backend restart
 
 # Show backend status
@@ -52,14 +63,22 @@ backend-status:
 backend-logs:
     {{SCRIPTS}}/orbweaver-backend logs
 
-# Start backend against a real Diode target
-# Usage: just backend-live grpc://diode-server:8080/diode
-backend-live target="grpc://localhost:8080/diode":
+# Start backend against a real Diode target (reads credentials from docker/.env)
+# Usage: just backend-live [grpc://diode-server:8080/diode]
+backend-live target="grpc://192.168.11.90:8080/diode":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    env_file="{{justfile_directory()}}/docker/.env"
+    if [[ -f "$env_file" ]]; then
+        set -a; source "$env_file"; set +a
+    fi
     ORBWEAVER_PORT=8073 \
     ORBWEAVER_REVIEW_DIR={{REVIEW_DIR}} \
     ORBWEAVER_ORB_AGENT_YML={{ORB_AGENT_YML}} \
     ORBWEAVER_ORB_CONTAINER={{ORB_CONTAINER}} \
     ORBWEAVER_DIODE_TARGET={{target}} \
+    ORBWEAVER_DIODE_CLIENT_ID="${DIODE_CLIENT_ID:-}" \
+    ORBWEAVER_DIODE_CLIENT_SECRET="${DIODE_CLIENT_SECRET:-}" \
     {{SCRIPTS}}/orbweaver-backend start
 
 # ── Frontend ─────────────────────────────────────────────────────────────────
