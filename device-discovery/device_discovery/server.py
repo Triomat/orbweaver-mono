@@ -494,11 +494,23 @@ class IngestRequest(BaseModel):
     statuses: list[ItemStatus] = [ItemStatus.ACCEPTED, ItemStatus.PENDING]
 
 
+class IngestSummary(BaseModel):
+    """Counts of what was ingested, by object type."""
+
+    devices: int = 0
+    interfaces: int = 0
+    ip_addresses: int = 0
+    vlans: int = 0
+    prefixes: int = 0
+    lldp_neighbors: int = 0
+
+
 class IngestResponse(BaseModel):
     review_id: str
     dry_run: bool
     ingested_count: int
     skipped_count: int
+    summary: IngestSummary = IngestSummary()
     errors: list[str] = []
 
 
@@ -563,12 +575,132 @@ def ingest_review(review_id: str, body: IngestRequest):
         # Dry run: don't change session status, just report what would be ingested
         pass
 
+    # Build summary counts by entity type
+    summary = IngestSummary()
+    for entity in entities_to_ingest:
+        if getattr(entity, "device", None) is not None:
+            summary.devices += 1
+        elif getattr(entity, "interface", None) is not None:
+            summary.interfaces += 1
+        elif getattr(entity, "ip_address", None) is not None:
+            summary.ip_addresses += 1
+        elif getattr(entity, "vlan", None) is not None:
+            summary.vlans += 1
+        elif getattr(entity, "prefix", None) is not None:
+            summary.prefixes += 1
+
+    # Count LLDP neighbors from source data (not in Diode entities)
+    for item in session.devices:
+        if item.status in body.statuses:
+            summary.lldp_neighbors += len(item.data.get("lldp_neighbors", []))
+
     return IngestResponse(
         review_id=review_id,
         dry_run=body.dry_run,
         ingested_count=len(entities_to_ingest),
         skipped_count=skipped,
+        summary=summary,
         errors=ingest_errors,
+    ).model_dump()
+
+
+# ---------------------------------------------------------------------------
+# NEW: Compare review with NetBox
+# ---------------------------------------------------------------------------
+
+
+class CompareRequest(BaseModel):
+    netbox_url: str
+    netbox_token: str
+    verify_ssl: bool = True
+    statuses: list[ItemStatus] = [ItemStatus.ACCEPTED, ItemStatus.PENDING]
+
+
+class CompareFieldDiff(BaseModel):
+    field_name: str
+    discovered_value: str
+    netbox_value: str
+
+
+class CompareObjectDiff(BaseModel):
+    object_type: str
+    unique_key: str
+    display_name: str
+    is_new: bool
+    fields: list[CompareFieldDiff] = []
+    errors: list[str] = []
+
+
+class CompareResponse(BaseModel):
+    review_id: str
+    compared_count: int
+    new_count: int
+    changed_count: int
+    in_sync_count: int
+    error_count: int
+    diffs: list[CompareObjectDiff]
+
+
+@app.post("/api/v1/reviews/{review_id}/compare")
+def compare_review(review_id: str, body: CompareRequest):
+    """
+    Compare a review session's discovered data against live NetBox state.
+
+    Returns per-object diffs showing which fields differ, which objects are new,
+    and which are already in sync.
+    """
+    session = review_store.get(review_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail=f"Review '{review_id}' not found")
+    if session.status == ReviewStatus.PENDING:
+        raise HTTPException(
+            status_code=409, detail="Discovery is still in progress for this review"
+        )
+
+    from device_discovery.review.compare import CompareConfig, compare_review_with_netbox
+
+    cfg = CompareConfig(
+        netbox_url=body.netbox_url,
+        netbox_token=body.netbox_token,
+        verify_ssl=body.verify_ssl,
+    )
+
+    items = [item.model_dump() for item in session.devices]
+    include = tuple(s.value for s in body.statuses)
+    raw_diffs = compare_review_with_netbox(items, cfg, include_statuses=include)
+
+    diffs = [
+        CompareObjectDiff(
+            object_type=d.object_type,
+            unique_key=d.unique_key,
+            display_name=d.display_name,
+            is_new=d.is_new,
+            fields=[
+                CompareFieldDiff(
+                    field_name=f.field_name,
+                    discovered_value=f.discovered_value,
+                    netbox_value=f.netbox_value,
+                )
+                for f in d.fields
+            ],
+            errors=d.errors,
+        )
+        for d in raw_diffs
+    ]
+
+    new_count = sum(1 for d in diffs if d.is_new)
+    error_count = sum(1 for d in diffs if d.errors)
+    changed_count = sum(1 for d in diffs if d.fields and not d.is_new)
+    in_sync_count = len(diffs) - new_count - error_count - changed_count
+
+    return CompareResponse(
+        review_id=review_id,
+        compared_count=len(diffs),
+        new_count=new_count,
+        changed_count=changed_count,
+        in_sync_count=in_sync_count,
+        error_count=error_count,
+        diffs=diffs,
     ).model_dump()
 
 

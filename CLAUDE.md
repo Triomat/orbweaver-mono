@@ -230,3 +230,59 @@ Env vars required for these endpoints (set in justfile):
 
 `orbweaver-ui/server/api/orb/[...path].ts` proxies `/api/orb/*` → `NUXT_PUBLIC_ORB_API_BASE/api/v1/*`
 to avoid CORS when the browser checks orb-agent status. Currently only used for status polling.
+
+---
+
+## Development workflow (justfile)
+
+All service management is via `just` recipes in `/home/cheddar/projects/netbox/orbweaver/justfile`.
+The UI repo has no justfile — it's managed from the orbweaver justfile.
+
+### Service management
+
+| Command | What it does |
+|---|---|
+| `just start` | Start backend (dry-run) + UI |
+| `just start grpc://host:8080/diode` | Start backend against a real Diode target + UI |
+| `just stop` | Stop both |
+| `just restart` | Stop + start both |
+| `just ps` | Show status of both services |
+| `just backend-restart` | Restart backend only (reloads code changes) |
+| `just backend-restart grpc://...` | Restart backend with Diode target |
+| `just ui-restart` | Restart UI only (reloads frontend changes) |
+| `just backend-logs` | Tail backend logs (`/tmp/orbweaver-backend.log`) |
+| `just ui-logs` | Tail UI logs (`/tmp/orbweaver-ui.log`) |
+
+### Deploy changes to live services
+
+- **Backend code changes**: `just backend-restart` (or `just backend-restart grpc://...` for live Diode)
+- **Frontend code changes**: `just ui-restart` (Nuxt dev server auto-reloads on file save, but restart if HMR misses something)
+- **Both**: `just restart`
+
+### Key paths
+
+- PID files: `/tmp/orbweaver-backend.pid`, `/tmp/orbweaver-ui.pid`
+- Log files: `/tmp/orbweaver-backend.log`, `/tmp/orbweaver-ui.log`
+- Review data: `/tmp/orbweaver-reviews/`
+- Backend port: 8073, UI port: 3000
+- Scripts: `scripts/orbweaver-backend`, `scripts/orbweaver-ui` (bash service wrappers)
+
+### Testing & CI
+
+| Command | What it does |
+|---|---|
+| `just test` | Run all backend tests |
+| `just test-cov` | Tests with coverage report |
+| `just test-legacy` | Run only upstream tests |
+| `just lint` | Run ruff linter |
+| `just check-syntax` | Syntax-check key Python files |
+| `just seed` | Seed a fake review session for UI testing |
+
+### Docker (integration stack)
+
+| Command | What it does |
+|---|---|
+| `just docker-up` | Build + start standalone orbweaver (port 8072) |
+| `just docker-up-agent` | Build + start orbweaver inside orb-agent |
+| `just docker-down` | Stop all Docker containers |
+| `just docker-logs` | Tail standalone container logs |

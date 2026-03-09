@@ -89,7 +89,8 @@ def translate_single_device(device: NormalizedDevice, defaults: Defaults) -> lis
     """
     entities: list[Entity] = []
 
-    # 1. Device entity
+    # 1. Device entity (without primary IPs — they can't be set until the IPs
+    #    are assigned to interfaces, which happens in step 2 below)
     diode_device = _translate_device(device, defaults)
     entities.append(Entity(device=diode_device))
 
@@ -103,6 +104,18 @@ def translate_single_device(device: NormalizedDevice, defaults: Defaults) -> lis
         vlan_entity = _translate_vlan(vlan, defaults)
         if vlan_entity:
             entities.append(Entity(vlan=vlan_entity))
+
+    # 4. Set primary IPs last — NetBox requires the IP to already be assigned
+    #    to an interface before it can be designated as primary on the device.
+    if device.primary_ip4 or device.primary_ip6:
+        entities.append(Entity(device=Device(
+            name=diode_device.name,
+            site=diode_device.site,
+            device_type=diode_device.device_type,
+            role=diode_device.role,
+            primary_ip4=device.primary_ip4 or None,
+            primary_ip6=device.primary_ip6 or None,
+        )))
 
     return entities
 
@@ -175,10 +188,22 @@ def _translate_interface(
 
     tagged_vlans = [_com_vlan_to_diode(v) for v in iface.tagged_vlans] if iface.tagged_vlans else []
 
-    # Build a minimal device reference (without config/tags to avoid duplication)
+    # Build a device reference for use in interface/IP entities.
+    # Must include device_type, role, platform, serial to prevent Diode from
+    # clobbering those fields when upserting the device from a nested ref.
+    # Must NOT include primary_ip4/primary_ip6: NetBox rejects setting a primary
+    # IP before that IP is assigned to an interface, causing the whole changeset
+    # (including the interface itself) to fail.
     device_ref = Device(
         name=diode_device.name,
         site=diode_device.site,
+        device_type=diode_device.device_type,
+        role=diode_device.role,
+        platform=diode_device.platform,
+        serial=diode_device.serial,
+        status=diode_device.status,
+        tags=diode_device.tags,
+        comments=diode_device.comments,
     )
 
     iface_kwargs = {
