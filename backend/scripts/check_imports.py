@@ -3,14 +3,14 @@
 import sys
 
 checks = [
-    ("device_discovery.models.common", ["NormalizedDevice", "NormalizedInterface", "DiscoveryResult"]),
-    ("device_discovery.models.version_parser", ["parse_version"]),
-    ("device_discovery.collectors.base", ["CollectorConfig", "BaseCollector"]),
-    ("device_discovery.collectors.napalm_helpers", ["NapalmConfig"]),
-    ("device_discovery.collectors.napalm_collector", ["NapalmCollector"]),
-    ("device_discovery.collectors.cisco_ios", ["CiscoCollector", "CiscoConfig"]),
-    ("device_discovery.collectors.aruba_aoscx", ["ArubaCollector", "ArubaConfig"]),
-    ("device_discovery.collectors.registry", ["list_collectors", "get_collector"]),
+    ("orbweaver.models.common", ["NormalizedDevice", "NormalizedInterface", "DiscoveryResult"]),
+    ("orbweaver.models.version_parser", ["parse_version"]),
+    ("orbweaver.collectors.base", ["CollectorConfig", "BaseCollector"]),
+    ("orbweaver.collectors.napalm_helpers", ["NapalmConfig"]),
+    ("orbweaver.collectors.napalm_collector", ["NapalmCollector"]),
+    ("orbweaver.collectors.cisco_ios", ["CiscoCollector", "CiscoConfig"]),
+    ("orbweaver.collectors.aruba_aoscx", ["ArubaCollector", "ArubaConfig"]),
+    ("orbweaver.collectors.registry", ["list_collectors", "get_collector"]),
     ("device_discovery.policy.models", ["Napalm"]),
 ]
 
@@ -25,7 +25,7 @@ for module, names in checks:
         print(f"  FAIL {module}: {e}")
         errors.append(module)
 
-from device_discovery.collectors.registry import list_collectors
+from orbweaver.collectors.registry import list_collectors
 print(f"\nRegistered collectors: {list_collectors()}")
 
 if errors:

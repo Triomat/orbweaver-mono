@@ -208,10 +208,6 @@ class Napalm(BaseModel):
         default=None,
         description="Override default configuration for this host, optional",
     )
-    collector: str | None = Field(
-        default=None,
-        description="Collector name (cisco_ios, aruba_aoscx, napalm). If set, uses the vendor collector framework instead of the generic NAPALM path.",
-    )
 
 
 class Policy(BaseModel):

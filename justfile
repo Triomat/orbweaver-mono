@@ -20,9 +20,10 @@ default:
 
 # ── Backend ──────────────────────────────────────────────────────────────────
 
-# Install / sync Python dependencies (including dacite)
+# Install / sync Python dependencies (upstream backend + orbweaver package)
 install-backend:
     {{VENV}}/pip install -e "{{DD_DIR}}[dev,test]"
+    {{VENV}}/pip install -e "orbweaver[dev,test]"
 
 # Start orbweaver backend (dry-run, no Diode server needed)
 backend-start:
@@ -246,24 +247,25 @@ test-file file:
 lint:
     cd {{DD_DIR}} && {{VENV}}/python -m ruff check device_discovery/ tests/
 
-# Verify all new module imports are valid (no Diode SDK required)
+# Verify all orbweaver module imports are valid (no Diode SDK required)
 check-imports:
-    cd {{DD_DIR}} && {{VENV}}/python scripts/check_imports.py
+    {{VENV}}/python {{DD_DIR}}/scripts/check_imports.py
 
 # Syntax-check all Python files
 check-syntax:
-    cd {{DD_DIR}} && {{VENV}}/python -m py_compile \
-        device_discovery/models/common.py \
-        device_discovery/models/version_parser.py \
-        device_discovery/collectors/base.py \
-        device_discovery/collectors/napalm_helpers.py \
-        device_discovery/collectors/napalm_collector.py \
-        device_discovery/collectors/cisco_ios.py \
-        device_discovery/collectors/aruba_aoscx.py \
-        device_discovery/collectors/registry.py \
-        device_discovery/diode_translate.py \
-        device_discovery/policy/runner.py \
-        device_discovery/policy/models.py
+    {{VENV}}/python -m py_compile \
+        orbweaver/models/common.py \
+        orbweaver/models/version_parser.py \
+        orbweaver/collectors/base.py \
+        orbweaver/collectors/napalm_helpers.py \
+        orbweaver/collectors/napalm_collector.py \
+        orbweaver/collectors/cisco_ios.py \
+        orbweaver/collectors/aruba_aoscx.py \
+        orbweaver/collectors/registry.py \
+        orbweaver/diode_translate.py \
+        orbweaver/patches.py \
+        orbweaver/app.py \
+        orbweaver/main.py
     @echo "All syntax OK"
 
 # ── Git workflows ────────────────────────────────────────────────────────────

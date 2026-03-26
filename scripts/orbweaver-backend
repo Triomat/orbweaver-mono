@@ -47,7 +47,7 @@ cmd_start() {
     ORBWEAVER_REVIEW_DIR="$REVIEW_DIR" \
     ORBWEAVER_CORS_ORIGINS="${ORBWEAVER_CORS_ORIGINS:-*}" \
     DIODE_TARGET="$DIODE_TARGET" \
-        "$VENV/device-discovery" \
+        "$VENV/orbweaver" \
         --host 0.0.0.0 \
         --port "$PORT" \
         "${extra_args[@]}" \

@@ -14,8 +14,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from device_discovery.collectors.base import BaseCollector
-from device_discovery.collectors.napalm_helpers import (
+from orbweaver.collectors.base import BaseCollector
+from orbweaver.collectors.napalm_helpers import (
     DRIVER_VENDOR_HINTS,
     NapalmConfig,
     build_device_from_napalm,
@@ -34,7 +34,7 @@ from device_discovery.collectors.napalm_helpers import (
     slugify,
     speed_to_type,
 )
-from device_discovery.models.common import (
+from orbweaver.models.common import (
     NormalizedDevice,
     NormalizedInterface,
     NormalizedLLDPNeighbor,
@@ -97,7 +97,7 @@ class NapalmCollector(BaseCollector):
             facts, host, self._default_site, vendor_hint, driver=self.config.driver
         )
 
-        from device_discovery.models.version_parser import parse_version
+        from orbweaver.models.version_parser import parse_version
 
         os_version = facts.get("os_version") or ""
         parsed = parse_version(os_version, vendor_hint=vendor_hint)
