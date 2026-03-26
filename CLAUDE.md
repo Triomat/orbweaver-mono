@@ -49,6 +49,9 @@ orbweaver-mono/
 │   ├── seed_review.py
 │   ├── pyproject.toml         ⚠ diverges from upstream (added deps + packages)
 │   └── docker-upstream/       (Dockerfile for building as standalone container)
+│   ├── network-discovery/     ✓ upstream Go backend, completely untouched
+│   ├── snmp-discovery/        ✓ upstream Go backend, completely untouched
+│   └── worker/                ✓ upstream Python worker, completely untouched
 │
 ├── frontend/                  ← orbweaver UI (Nuxt 4, shadcn-nuxt, Tailwind)
 │   ├── app/
@@ -57,10 +60,6 @@ orbweaver-mono/
 │   │   └── components/ui/
 │   ├── nuxt.config.ts
 │   └── package.json
-│
-├── network-discovery/         ✓ upstream Go backend, completely untouched
-├── snmp-discovery/            ✓ upstream, completely untouched
-├── worker/                    ✓ upstream, completely untouched
 │
 ├── docker/                    ← integration Docker Compose stack
 ├── scripts/                   ← bash service wrappers (orbweaver-backend, orbweaver-ui)
