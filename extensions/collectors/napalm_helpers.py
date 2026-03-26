@@ -16,8 +16,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from orbweaver.collectors.base import CollectorConfig
-from orbweaver.models.common import (
+from extensions.collectors.base import CollectorConfig
+from extensions.models.common import (
     DeviceStatus,
     InterfaceType,
     IPAddressRole,
@@ -32,7 +32,7 @@ from orbweaver.models.common import (
     NormalizedSite,
     NormalizedVLAN,
 )
-from orbweaver.models.version_parser import parse_version
+from extensions.models.version_parser import parse_version
 
 
 # ---------------------------------------------------------------------------

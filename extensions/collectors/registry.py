@@ -6,7 +6,7 @@ instantiate them by string key. This avoids hard-coding vendor imports
 and makes it trivial to add new vendors.
 
 Usage:
-    from orbweaver.collectors.registry import get_collector
+    from extensions.collectors.registry import get_collector
 
     collector_class, config_class = get_collector("aruba_aoscx")
     config = config_class(hosts=["10.0.0.1"], username="admin", password="secret")
@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Type
 
-from orbweaver.collectors.base import BaseCollector, CollectorConfig
+from extensions.collectors.base import BaseCollector, CollectorConfig
 
 # ---------------------------------------------------------------------------
 # Registry
@@ -56,10 +56,10 @@ def list_collectors() -> list[str]:
 
 def _register_builtins() -> None:
     """Import and register all built-in collectors."""
-    from orbweaver.collectors.aruba_aoscx import ArubaCollector, ArubaConfig
-    from orbweaver.collectors.cisco_ios import CiscoCollector, CiscoConfig
-    from orbweaver.collectors.napalm_helpers import NapalmConfig
-    from orbweaver.collectors.napalm_collector import NapalmCollector
+    from extensions.collectors.aruba_aoscx import ArubaCollector, ArubaConfig
+    from extensions.collectors.cisco_ios import CiscoCollector, CiscoConfig
+    from extensions.collectors.napalm_helpers import NapalmConfig
+    from extensions.collectors.napalm_collector import NapalmCollector
 
     register_collector("aruba_aoscx", ArubaCollector, ArubaConfig)
     register_collector("cisco_ios", CiscoCollector, CiscoConfig)

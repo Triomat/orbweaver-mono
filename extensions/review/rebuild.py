@@ -10,7 +10,7 @@ from enum import Enum
 
 import dacite
 
-from orbweaver.models.common import NormalizedDevice
+from extensions.models.common import NormalizedDevice
 
 
 def _parse_datetime(value: str) -> datetime:

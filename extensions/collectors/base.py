@@ -17,7 +17,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any, Generator
 
-from orbweaver.models.common import (
+from extensions.models.common import (
     DeviceStatus,
     DiscoveryResult,
     NormalizedDevice,

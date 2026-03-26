@@ -21,14 +21,14 @@ dev = ["ruff"]
 test = ["coverage", "pytest", "pytest-cov==6.0.0"]
 
 [project.scripts]
-orbweaver = "orbweaver.main:main"
+orbweaver = "extensions.main:main"
 
 [tool.setuptools]
 packages = [
-    "orbweaver",
-    "orbweaver.collectors",
-    "orbweaver.models",
-    "orbweaver.review",
+    "extensions",
+    "extensions.collectors",
+    "extensions.models",
+    "extensions.review",
 ]
 
 [build-system]
