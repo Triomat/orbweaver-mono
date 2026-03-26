@@ -4,8 +4,8 @@
 set dotenv-load := true
 
 VENV       := ".venv/bin"
-DD_DIR     := "device-discovery"
-UI_DIR     := "../orbweaver-ui"
+DD_DIR     := "backend"
+UI_DIR     := "frontend"
 REVIEW_DIR    := "/tmp/orbweaver-reviews"
 ORB_AGENT_YML := "/home/cheddar/projects/netbox/orb/agent.yml"
 ORB_CONTAINER := "orb-agent"

@@ -4,7 +4,7 @@ services:
   # Standalone device-discovery — accepts policy POSTs on :8072
   discovery:
     build:
-      context: ../device-discovery
+      context: ../backend
       dockerfile: docker/Dockerfile
     ports:
       - "8072:8072"

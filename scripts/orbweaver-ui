@@ -4,7 +4,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
-UI_DIR="$(dirname "$REPO_ROOT")/orbweaver-ui"
+UI_DIR="$REPO_ROOT/frontend"
 
 PID_FILE="/tmp/orbweaver-ui.pid"
 LOG_FILE="/tmp/orbweaver-ui.log"
