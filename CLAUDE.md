@@ -24,34 +24,50 @@ The orb-agent container loads configuration (local YAML or Git), manages secrets
 
 ```
 orbweaver-mono/
-├── backend/                   ← orbweaver's enhanced device-discovery backend
-│   ├── device_discovery/
+├── backend/                   ← upstream device-discovery (100% unmodified)
+│   ├── device_discovery/      ✓ every file identical to upstream
 │   │   ├── policy/
-│   │   │   ├── runner.py      ⚠ diverges from upstream
-│   │   │   ├── models.py      ⚠ diverges from upstream
+│   │   │   ├── runner.py      ✓ upstream, untouched
+│   │   │   ├── models.py      ✓ upstream, untouched
 │   │   │   ├── manager.py     ✓ upstream, untouched
 │   │   │   ├── run.py         ✓ upstream, untouched
 │   │   │   └── portscan.py    ✓ upstream, untouched
-│   │   ├── server.py          ⚠ diverges from upstream
-│   │   ├── collectors/        ✦ orbweaver-only (vendor collector framework)
-│   │   ├── models/            ✦ orbweaver-only (Common Object Model)
-│   │   ├── review/            ✦ orbweaver-only (review workflow)
-│   │   ├── diode_translate.py ✦ orbweaver-only (COM → Diode SDK bridge)
+│   │   ├── server.py          ✓ upstream, untouched
 │   │   ├── client.py          ✓ upstream, untouched
 │   │   ├── main.py            ✓ upstream, untouched
+│   │   ├── entity_metadata.py ✓ upstream, untouched
 │   │   ├── translate.py       ✓ upstream, untouched
 │   │   ├── interface.py       ✓ upstream, untouched
 │   │   ├── defaults.py        ✓ upstream, untouched
 │   │   ├── metrics.py         ✓ upstream, untouched
 │   │   └── version.py         ✓ upstream, untouched
-│   ├── tests/
+│   ├── tests/                 ✓ upstream tests, untouched
 │   ├── scripts/
 │   ├── seed_review.py
-│   ├── pyproject.toml         ⚠ diverges from upstream (added deps + packages)
-│   └── docker-upstream/       (Dockerfile for building as standalone container)
-│   ├── network-discovery/     ✓ upstream Go backend, completely untouched
-│   ├── snmp-discovery/        ✓ upstream Go backend, completely untouched
-│   └── worker/                ✓ upstream Python worker, completely untouched
+│   └── pyproject.toml         ✓ upstream, untouched
+│
+├── orbweaver/                 ✦ orbweaver-only extension package
+│   ├── patches.py             ✦ runtime patches (Napalm model + PolicyRunner)
+│   ├── app.py                 ✦ extends upstream FastAPI app in-place
+│   ├── main.py                ✦ entry point: patches → app → upstream main()
+│   ├── pyproject.toml         ✦ package config (entry point: orbweaver CLI)
+│   ├── collectors/            ✦ vendor collector framework
+│   │   ├── base.py            ✦ BaseCollector ABC + CollectorConfig
+│   │   ├── napalm_helpers.py  ✦ NAPALM helper functions (COM builders)
+│   │   ├── napalm_collector.py ✦ generic NAPALM collector
+│   │   ├── cisco_ios.py       ✦ Cisco IOS/IOS-XE: NAPALM + CLI enrichment
+│   │   ├── aruba_aoscx.py     ✦ Aruba AOS-CX: NAPALM + REST API
+│   │   └── registry.py        ✦ pluggable collector registry
+│   ├── models/                ✦ Common Object Model (COM)
+│   │   ├── common.py          ✦ NormalizedDevice, NormalizedInterface, etc.
+│   │   └── version_parser.py  ✦ vendor OS version string parsers
+│   ├── review/                ✦ review workflow
+│   │   ├── models.py          ✦ ReviewSession, ReviewItem, ReviewStatus
+│   │   ├── store.py           ✦ ReviewStore: JSON-on-disk persistence
+│   │   ├── discover.py        ✦ run_discovery_for_review(): discover-and-hold
+│   │   ├── rebuild.py         ✦ device_from_dict(): dacite reconstruction
+│   │   └── compare.py         ✦ compare vs live NetBox (pynetbox)
+│   └── diode_translate.py     ✦ COM → Diode SDK entity bridge
 │
 ├── frontend/                  ← orbweaver UI (Nuxt 4, shadcn-nuxt, Tailwind)
 │   ├── app/
@@ -65,7 +81,7 @@ orbweaver-mono/
 ├── scripts/                   ← bash service wrappers (orbweaver-backend, orbweaver-ui)
 └── justfile                   ← all dev commands live here
 
-Legend: ✓ upstream untouched  /  ⚠ diverges from upstream  /  ✦ orbweaver-only
+Legend: ✓ upstream untouched  /  ✦ orbweaver-only
 ```
 
 ---
@@ -85,28 +101,36 @@ Legend: ✓ upstream untouched  /  ⚠ diverges from upstream  /  ✦ orbweaver-
 
 ## Upstream compatibility
 
+**Rule: backend/ is 100% upstream. Do not modify any file under backend/. All orbweaver logic lives in orbweaver/.**
+
+### How extensions work (zero upstream modifications)
+
+orbweaver extends the upstream backend via runtime patching at process startup:
+
+```
+orbweaver/main.py
+  │
+  ├── import orbweaver.patches
+  │     ├── Napalm.model_fields["collector"] = ...  (adds collector field)
+  │     ├── Napalm.model_rebuild(force=True)
+  │     ├── PolicyRunner._select_collector = ...
+  │     ├── PolicyRunner._collect_device_data_via_collector = ...
+  │     └── PolicyRunner._collect_device_data = ...  (wraps upstream method)
+  │
+  ├── import orbweaver.app
+  │     ├── from device_discovery.server import app   (triggers upstream app creation)
+  │     ├── app.add_middleware(CORSMiddleware, ...)
+  │     ├── removes upstream /api/v1/status route
+  │     └── adds enhanced /api/v1/status + all new routes
+  │
+  └── device_discovery.main.main()    (starts uvicorn with the extended app)
+```
+
+### Upstream merge workflow
+
 orbweaver tracks `netboxlabs/orb-discovery` as a git remote named `upstream`.
 
-> **Rule: Do not modify files that exist verbatim in upstream unless absolutely necessary. New code lives in new files.**
-
-### Files that diverge from upstream (manual merge required)
-
-| File | What was changed |
-|---|---|
-| `backend/device_discovery/policy/runner.py` | Added `_select_collector()`, `_collect_device_data_via_collector()`, wired into `_collect_device_data()` |
-| `backend/device_discovery/policy/models.py` | Added `collector: str | None` field to `Napalm` model |
-| `backend/device_discovery/server.py` | Added CORS middleware, `ReviewCounts`, extended `/api/v1/status`, all review/ingest/compare/orb-agent endpoints |
-| `backend/pyproject.toml` | Added `dacite`, `requests`, `pynetbox` deps; added collectors/models/review to packages |
-
-### Files safe to take from upstream without review
-
-All files not listed above in `backend/device_discovery/`:
-`client.py`, `main.py`, `translate.py`, `interface.py`, `defaults.py`, `metrics.py`, `version.py`,
-`policy/manager.py`, `policy/run.py`, `policy/portscan.py`
-
-### Upstream merge workflow (after monorepo path rename)
-
-Direct `git merge upstream/develop` does **not** apply cleanly — upstream uses `device-discovery/` as path, this repo uses `backend/`. Use a patch-based approach:
+Since backend/ path differs from upstream's device-discovery/ path, direct `git merge upstream/develop` does not apply cleanly. Use a patch-based approach:
 
 ```bash
 git fetch upstream
@@ -114,59 +138,52 @@ git fetch upstream
 # See what changed in the latest upstream commit
 git diff upstream/develop~1 upstream/develop -- device-discovery/
 
-# For unchanged files: extract and apply manually
+# For any changed file: extract and apply directly to backend/
 git show upstream/develop:device-discovery/device_discovery/client.py > backend/device_discovery/client.py
-
-# For diverged files (runner.py, models.py, server.py, pyproject.toml):
-# View upstream version, manually apply relevant changes, preserve orbweaver additions
-git show upstream/develop:device-discovery/device_discovery/policy/runner.py
+git show upstream/develop:device-discovery/pyproject.toml > backend/pyproject.toml
+# etc.
 ```
+
+**Never edit backend/ files by hand** — always take them verbatim from upstream.
 
 ---
 
 ## Architecture: the orbweaver layer
 
-The original orb-discovery does generic NAPALM collection only. orbweaver adds on top:
+### orbweaver/patches.py — Napalm model extension
 
-### New modules (not in upstream)
+Adds `collector: str | None` field to the upstream `Napalm` Pydantic model at runtime using Pydantic v2's `model_rebuild()`. This lets YAML policies use `collector: cisco_ios` without touching `policy/models.py`.
 
-```
-backend/device_discovery/
-├── models/
-│   ├── common.py              ← Common Object Model (COM) dataclasses (NormalizedDevice, etc.)
-│   └── version_parser.py      ← Vendor OS version string parsers
-├── collectors/
-│   ├── base.py                ← BaseCollector ABC + CollectorConfig
-│   ├── napalm_helpers.py      ← NAPALM helper functions (COM builders)
-│   ├── napalm_collector.py    ← Generic NAPALM collector
-│   ├── cisco_ios.py           ← Cisco IOS/IOS-XE: NAPALM + CLI enrichment
-│   ├── aruba_aoscx.py         ← Aruba AOS-CX: NAPALM + REST API
-│   └── registry.py            ← Pluggable collector registry
-├── review/
-│   ├── models.py              ← ReviewSession, ReviewItem, ReviewStatus, ItemStatus
-│   ├── store.py               ← ReviewStore: JSON-on-disk persistence
-│   ├── discover.py            ← run_discovery_for_review(): one-shot, no immediate ingest
-│   ├── rebuild.py             ← device_from_dict(): dacite-based reconstruction for ingest
-│   └── compare.py             ← compare review data vs live NetBox (pynetbox)
-└── diode_translate.py         ← COM → Diode SDK entity bridge
-```
+### orbweaver/patches.py — PolicyRunner extension
+
+Three methods are monkey-patched onto `PolicyRunner`:
+- `_select_collector(scope)` — picks vendor collector by `scope.collector` or `scope.driver`
+- `_collect_device_data_via_collector(scope, hostname, config, run_id)` — runs COM collector path
+- `_collect_device_data(scope, hostname, config, run_id)` — wraps upstream: tries collector first, falls back to NAPALM
+
+### orbweaver/app.py — FastAPI extension
+
+Imports the upstream `app` object and extends it in-place:
+- CORS middleware (origins from `ORBWEAVER_CORS_ORIGINS` env var)
+- Overrides `/api/v1/status` with enhanced response (adds `reviews`, `dry_run`, `diode_target`)
+- New routes: collectors, discover, reviews CRUD, ingest, compare, orb-agent
 
 ### Data flow
 
 ```
 POST /api/v1/policies (YAML)
   ↓
-runner.py._collect_device_data()
-  ├── scope.collector = "cisco_ios"   → CiscoCollector → NormalizedDevice
-  │                                   → diode_translate → list[Entity] → Diode SDK
-  ├── scope.collector = "aruba_aoscx" → ArubaCollector (NAPALM + REST)
+runner.py._collect_device_data()   [upstream, patched at startup]
+  ├── scope.collector = "cisco_ios"   → orbweaver.collectors.CiscoCollector → NormalizedDevice
+  │                                   → orbweaver.diode_translate → list[Entity] → Diode SDK
+  ├── scope.collector = "aruba_aoscx" → orbweaver.collectors.ArubaCollector
   │                                   → same path
   └── scope.collector = None          → original NAPALM-only path (unchanged)
-                                      → translate.py + interface.py → Diode SDK
+                                      → device_discovery.translate + interface → Diode SDK
 
 POST /api/v1/discover (YAML)          → review workflow (discover-and-hold)
   ↓ background task
-  collector → NormalizedDevice → ReviewSession (JSON on disk)
+  orbweaver collector → NormalizedDevice → ReviewSession (JSON on disk)
   ↓ user reviews in UI
 POST /api/v1/reviews/{id}/ingest      → device_from_dict → diode_translate → Diode SDK
 ```
@@ -203,15 +220,6 @@ policies:
 
 ---
 
-## Key design decisions
-
-1. **Backward compatibility**: Existing policies without `collector:` use the original NAPALM-only path unchanged.
-2. **Upstream safety**: New code lives in new files. Only `runner.py`, `models.py`, `server.py`, `pyproject.toml` diverge — all changes are additive.
-3. **COM as the contract**: All vendor collectors produce `NormalizedDevice`. Adding new vendors (Juniper, Arista) only requires a new collector — translation layer stays the same.
-4. **Registry pattern**: Collectors are registered by name. `collector: cisco_ios` in YAML maps to `CiscoCollector`. New vendor = write collector + call `register_collector()`.
-
----
-
 ## Git identity
 
 ```
@@ -228,6 +236,15 @@ Remote repository (GitLab internal) will be configured later. Currently local on
 ## Development workflow (justfile)
 
 All service management via `just` from the monorepo root.
+
+### Installation
+
+```bash
+# Create venv and install both packages
+python3 -m venv .venv
+just install-backend   # installs backend/ (device-discovery) + orbweaver/
+just install-ui        # installs frontend node deps
+```
 
 ### Service management
 
@@ -248,7 +265,8 @@ All service management via `just` from the monorepo root.
 
 | Path | What it is |
 |---|---|
-| `backend/device_discovery/` | Python package |
+| `backend/device_discovery/` | Upstream Python package (unmodified) |
+| `orbweaver/` | orbweaver extension package |
 | `frontend/` | Nuxt 4 UI |
 | `docker/` | Docker Compose integration stack |
 | `scripts/` | Bash service wrappers |
@@ -267,7 +285,8 @@ All service management via `just` from the monorepo root.
 | `just test-cov` | Tests with coverage report |
 | `just test-legacy` | Run only upstream tests (verify nothing broke) |
 | `just lint` | Run ruff linter |
-| `just check-syntax` | Syntax-check key Python files |
+| `just check-syntax` | Syntax-check key orbweaver Python files |
+| `just check-imports` | Verify orbweaver module imports work |
 | `just seed` | Seed a fake review session for UI testing |
 
 ### Docker (integration stack)
@@ -297,7 +316,7 @@ Stack: Nuxt 4, shadcn-nuxt, Tailwind CSS, VueUse
 
 API base URL: `NUXT_PUBLIC_API_BASE` env var (default: `http://localhost:8073`)
 
-The frontend calls only one upstream endpoint (`/api/v1/status`). All other endpoints are orbweaver-only.
+The frontend calls `/api/v1/status` and all orbweaver-only endpoints. The upstream-only endpoints (`/api/v1/capabilities`, `/api/v1/policies`) are available but not directly used by the UI.
 
 ---
 
@@ -347,7 +366,7 @@ policies:
 
 The orbweaver-ui `/orb-agent` page handles this conversion automatically when triggering.
 
-### orb-agent endpoints added to server.py
+### orb-agent endpoints added in orbweaver/app.py
 
 - `GET  /api/v1/orb-agent/status`  — docker inspect + docker exec status
 - `GET  /api/v1/orb-agent/config`  — reads `ORBWEAVER_ORB_AGENT_YML` from disk
@@ -364,13 +383,14 @@ Required env vars (set in justfile):
 
 | Files | Source |
 |---|---|
-| Everything not listed below | `netboxlabs/orb-discovery` upstream (kept identical) |
-| `backend/device_discovery/models/common.py`, `models/version_parser.py` | Ported from `Triomat/netbox-discovery` (imports updated) |
-| `backend/device_discovery/collectors/*.py` | Ported from `Triomat/netbox-discovery` (imports updated) |
-| `backend/device_discovery/diode_translate.py` | Original orbweaver code |
-| `backend/device_discovery/review/` | Original orbweaver code |
-| Additions in `policy/runner.py` | Original orbweaver code |
-| `collector` field in `policy/models.py` | Original orbweaver code |
+| Everything under `backend/` | `netboxlabs/orb-discovery` upstream (kept identical) |
+| `orbweaver/models/common.py`, `models/version_parser.py` | Ported from `Triomat/netbox-discovery` (imports updated) |
+| `orbweaver/collectors/*.py` | Ported from `Triomat/netbox-discovery` (imports updated) |
+| `orbweaver/diode_translate.py` | Original orbweaver code |
+| `orbweaver/review/` | Original orbweaver code |
+| `orbweaver/patches.py` | Original orbweaver code |
+| `orbweaver/app.py` | Original orbweaver code |
+| `orbweaver/main.py` | Original orbweaver code |
 | `frontend/` | Original orbweaver UI (was separate repo `orbweaver-ui`) |
 
-All `netbox_discovery.*` imports were updated to `device_discovery.*` during the port.
+All `netbox_discovery.*` imports were updated to `orbweaver.*` or `device_discovery.*` during the port.
