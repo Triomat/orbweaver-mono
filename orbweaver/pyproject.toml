@@ -24,6 +24,7 @@ test = ["coverage", "pytest", "pytest-cov==6.0.0"]
 orbweaver = "orbweaver.main:main"
 
 [tool.setuptools]
+package-dir = {"" = ".."}
 packages = [
     "orbweaver",
     "orbweaver.collectors",
