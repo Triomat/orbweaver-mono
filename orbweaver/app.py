@@ -37,12 +37,12 @@ from device_discovery.server import app, manager, parse_yaml_body, start_time
 from device_discovery.version import version_semver
 
 # ── Orbweaver imports ─────────────────────────────────────────────────────────
-from extensions.collectors.registry import get_collector, list_collectors
-from extensions.diode_translate import translate_single_device
-from extensions.review.compare import CompareConfig, compare_review_with_netbox
-from extensions.review.models import ItemStatus, ReviewItem, ReviewStatus
-from extensions.review.rebuild import device_from_dict
-from extensions.review.store import ReviewStore
+from orbweaver.collectors.registry import get_collector, list_collectors
+from orbweaver.diode_translate import translate_single_device
+from orbweaver.review.compare import CompareConfig, compare_review_with_netbox
+from orbweaver.review.models import ItemStatus, ReviewItem, ReviewStatus
+from orbweaver.review.rebuild import device_from_dict
+from orbweaver.review.store import ReviewStore
 
 # ── Review store ──────────────────────────────────────────────────────────────
 _review_dir = os.environ.get("ORBWEAVER_REVIEW_DIR", "reviews")
@@ -157,7 +157,7 @@ class DiscoverResponse(BaseModel):
 
 def _background_discover(policy_request: PolicyRequest, policy_name: str, review_id: str) -> None:
     """Background task: run discovery and update the review session."""
-    from extensions.review.discover import run_discovery_for_review as _run
+    from orbweaver.review.discover import run_discovery_for_review as _run
 
     session = review_store.get(review_id)
     if session is None:

@@ -43,8 +43,8 @@ from device_discovery.entity_metadata import apply_run_id_to_entities  # noqa: E
 from device_discovery.policy.models import Defaults  # noqa: E402
 from device_discovery.metrics import get_metric  # noqa: E402
 from netboxlabs.diode.sdk import create_message_chunks, estimate_message_size  # noqa: E402
-from extensions.collectors.registry import get_collector, list_collectors  # noqa: E402
-from extensions.diode_translate import translate_single_device  # noqa: E402
+from orbweaver.collectors.registry import get_collector, list_collectors  # noqa: E402
+from orbweaver.diode_translate import translate_single_device  # noqa: E402
 
 
 def _select_collector(self, scope):

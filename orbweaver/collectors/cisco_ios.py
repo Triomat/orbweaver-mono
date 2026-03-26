@@ -23,8 +23,8 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from extensions.collectors.base import BaseCollector
-from extensions.collectors.napalm_helpers import (
+from orbweaver.collectors.base import BaseCollector
+from orbweaver.collectors.napalm_helpers import (
     NapalmConfig,
     build_interfaces_from_napalm,
     build_lldp_from_napalm,
@@ -37,7 +37,7 @@ from extensions.collectors.napalm_helpers import (
     napalm_get_vlans,
     slugify,
 )
-from extensions.models.common import (
+from orbweaver.models.common import (
     DeviceStatus,
     InterfaceMode,
     NormalizedDevice,
@@ -51,7 +51,7 @@ from extensions.models.common import (
     NormalizedSite,
     NormalizedVLAN,
 )
-from extensions.models.version_parser import parse_version
+from orbweaver.models.version_parser import parse_version
 
 
 # ---------------------------------------------------------------------------

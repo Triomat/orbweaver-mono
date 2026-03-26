@@ -2,7 +2,7 @@
 
 Usage
 -----
-    from extensions.review.discover import run_discovery_for_review
+    from orbweaver.review.discover import run_discovery_for_review
     session = run_discovery_for_review(policy, policy_name="my-policy", review_store=store)
 """
 
@@ -14,10 +14,10 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from extensions.collectors.registry import get_collector, list_collectors
+from orbweaver.collectors.registry import get_collector, list_collectors
 from device_discovery.policy.models import Config, Napalm, Policy
-from extensions.review.models import ItemStatus, ReviewItem, ReviewSession, ReviewStatus
-from extensions.review.store import ReviewStore
+from orbweaver.review.models import ItemStatus, ReviewItem, ReviewSession, ReviewStatus
+from orbweaver.review.store import ReviewStore
 
 logger = logging.getLogger(__name__)
 

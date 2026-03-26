@@ -26,7 +26,7 @@ from netboxlabs.diode.sdk.ingester import (
     Prefix,
 )
 
-from extensions.models.common import (
+from orbweaver.models.common import (
     DiscoveryResult,
     NormalizedDevice,
     NormalizedInterface,

@@ -23,7 +23,7 @@ default:
 # Install / sync Python dependencies (upstream backend + orbweaver package)
 install-backend:
     {{VENV}}/pip install -e "{{DD_DIR}}[dev,test]"
-    {{VENV}}/pip install -e "extensions[dev,test]"
+    {{VENV}}/pip install -e "orbweaver[dev,test]"
 
 # Start orbweaver backend (dry-run, no Diode server needed)
 backend-start:
@@ -254,18 +254,18 @@ check-imports:
 # Syntax-check all Python files
 check-syntax:
     {{VENV}}/python -m py_compile \
-        extensions/models/common.py \
-        extensions/models/version_parser.py \
-        extensions/collectors/base.py \
-        extensions/collectors/napalm_helpers.py \
-        extensions/collectors/napalm_collector.py \
-        extensions/collectors/cisco_ios.py \
-        extensions/collectors/aruba_aoscx.py \
-        extensions/collectors/registry.py \
-        extensions/diode_translate.py \
-        extensions/patches.py \
-        extensions/app.py \
-        extensions/main.py
+        orbweaver/models/common.py \
+        orbweaver/models/version_parser.py \
+        orbweaver/collectors/base.py \
+        orbweaver/collectors/napalm_helpers.py \
+        orbweaver/collectors/napalm_collector.py \
+        orbweaver/collectors/cisco_ios.py \
+        orbweaver/collectors/aruba_aoscx.py \
+        orbweaver/collectors/registry.py \
+        orbweaver/diode_translate.py \
+        orbweaver/patches.py \
+        orbweaver/app.py \
+        orbweaver/main.py
     @echo "All syntax OK"
 
 # ── Git workflows ────────────────────────────────────────────────────────────

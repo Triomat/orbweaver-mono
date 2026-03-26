@@ -3,14 +3,14 @@
 import sys
 
 checks = [
-    ("extensions.models.common", ["NormalizedDevice", "NormalizedInterface", "DiscoveryResult"]),
-    ("extensions.models.version_parser", ["parse_version"]),
-    ("extensions.collectors.base", ["CollectorConfig", "BaseCollector"]),
-    ("extensions.collectors.napalm_helpers", ["NapalmConfig"]),
-    ("extensions.collectors.napalm_collector", ["NapalmCollector"]),
-    ("extensions.collectors.cisco_ios", ["CiscoCollector", "CiscoConfig"]),
-    ("extensions.collectors.aruba_aoscx", ["ArubaCollector", "ArubaConfig"]),
-    ("extensions.collectors.registry", ["list_collectors", "get_collector"]),
+    ("orbweaver.models.common", ["NormalizedDevice", "NormalizedInterface", "DiscoveryResult"]),
+    ("orbweaver.models.version_parser", ["parse_version"]),
+    ("orbweaver.collectors.base", ["CollectorConfig", "BaseCollector"]),
+    ("orbweaver.collectors.napalm_helpers", ["NapalmConfig"]),
+    ("orbweaver.collectors.napalm_collector", ["NapalmCollector"]),
+    ("orbweaver.collectors.cisco_ios", ["CiscoCollector", "CiscoConfig"]),
+    ("orbweaver.collectors.aruba_aoscx", ["ArubaCollector", "ArubaConfig"]),
+    ("orbweaver.collectors.registry", ["list_collectors", "get_collector"]),
     ("device_discovery.policy.models", ["Napalm"]),
 ]
 
@@ -25,7 +25,7 @@ for module, names in checks:
         print(f"  FAIL {module}: {e}")
         errors.append(module)
 
-from extensions.collectors.registry import list_collectors
+from orbweaver.collectors.registry import list_collectors
 print(f"\nRegistered collectors: {list_collectors()}")
 
 if errors:

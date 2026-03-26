@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from extensions.review.models import ReviewSession
+from orbweaver.review.models import ReviewSession
 
 logger = logging.getLogger(__name__)
 
