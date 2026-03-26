@@ -14,6 +14,7 @@ from apscheduler.triggers.date import DateTrigger
 from napalm import get_network_driver
 
 from device_discovery.client import Client, MAX_MESSAGE_SIZE_BYTES
+from device_discovery.entity_metadata import apply_run_id_to_entities
 from netboxlabs.diode.sdk import create_message_chunks, estimate_message_size
 from device_discovery.discovery import discover_device_driver, supported_drivers
 from device_discovery.metrics import get_metric
@@ -192,7 +193,7 @@ class PolicyRunner:
         return None
 
     def _collect_device_data_via_collector(
-        self, scope: Napalm, sanitized_hostname: str, config: Config
+        self, scope: Napalm, sanitized_hostname: str, config: Config, run_id: str | None = None
     ) -> None:
         """
         Collect device data using the vendor collector framework (COM path).
@@ -245,6 +246,8 @@ class PolicyRunner:
         # Our entities are already translated; call the Diode client directly.
         client = Client()
         entities_list = list(entities)
+        if run_id:
+            apply_run_id_to_entities(entities_list, run_id)
         entity_count = len(entities_list)
         size_bytes = estimate_message_size(entities_list)
 
@@ -275,7 +278,11 @@ class PolicyRunner:
             discovery_success.add(1, {"policy": self.name})
 
     def _collect_device_data(
-        self, scope: Napalm, sanitized_hostname: str, config: Config
+        self,
+        scope: Napalm,
+        sanitized_hostname: str,
+        config: Config,
+        run_id: str | None = None,
     ):
         """
         Connect to device and collect data.
@@ -289,12 +296,13 @@ class PolicyRunner:
             scope: Scope data for the device.
             sanitized_hostname: Sanitized hostname for logging.
             config: Configuration data containing site information.
+            run_id: Run identifier for ingest and per-entity metadata.
 
         """
         # Try vendor collector path first
         collector_entry = self._select_collector(scope)
         if collector_entry is not None:
-            self._collect_device_data_via_collector(scope, sanitized_hostname, config)
+            self._collect_device_data_via_collector(scope, sanitized_hostname, config, run_id)
             return
 
         # Fallback: existing generic NAPALM path
@@ -350,7 +358,7 @@ class PolicyRunner:
                     f"Policy {self.name}, Hostname {sanitized_hostname}: Error getting VLANs: {e}. Continuing without VLAN data."
                 )
             metadata = {"policy_name": self.name, "hostname": sanitized_hostname}
-            Client().ingest(metadata, data)
+            Client().ingest(metadata, data, run_id=run_id)
             discovery_success = get_metric("discovery_success")
             if discovery_success:
                 discovery_success.add(1, {"policy": self.name})
@@ -481,7 +489,7 @@ class PolicyRunner:
                 discovery_attempts.add(1, {"policy": self.name})
 
             # Collect data from device
-            self._collect_device_data(scope, sanitized_hostname, config)
+            self._collect_device_data(scope, sanitized_hostname, config, run.id)
 
             # UPDATE RUN ON SUCCESS
             self.run_store.update_run(
@@ -593,7 +601,7 @@ class PolicyRunner:
                 discovery_attempts.add(1, {"policy": self.name})
 
             # Collect data from device
-            self._collect_device_data(scope, sanitized_hostname, config)
+            self._collect_device_data(scope, sanitized_hostname, config, run.id)
 
             # UPDATE RUN ON SUCCESS
             self.run_store.update_run(
