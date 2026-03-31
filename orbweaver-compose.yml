@@ -1,0 +1,48 @@
+name: orbweaver
+
+# Edit the environment variables below, then run:
+#   docker compose -f orbweaver-compose.yml up -d
+
+services:
+
+  orbweaver:
+    image: ghcr.io/triomat/orbweaver-backend:latest
+    restart: unless-stopped
+    ports:
+      - "8072:8072"
+    command: >
+      orbweaver
+        --host 0.0.0.0
+        --port 8072
+        --diode-target ${DIODE_TARGET}
+        --diode-client-id ${DIODE_CLIENT_ID}
+        --diode-client-secret ${DIODE_CLIENT_SECRET}
+    environment:
+      # ── Diode ────────────────────────────────────────────────────────────────
+      # Full gRPC target: grpc://<diode-host>:<port>/diode
+      DIODE_TARGET: grpc://CHANGEME:8080/diode
+      DIODE_CLIENT_ID: diode-ingest
+      DIODE_CLIENT_SECRET: CHANGEME
+
+      # ── orbweaver internals ───────────────────────────────────────────────────
+      ORBWEAVER_REVIEW_DIR: /reviews
+      ORBWEAVER_CORS_ORIGINS: "*"
+    volumes:
+      - orbweaver-reviews:/reviews
+      # Optional: mount your SSH config for device access
+      # - /path/to/ssh-napalm.conf:/opt/orb/ssh-napalm.conf:ro
+
+  frontend:
+    image: ghcr.io/triomat/orbweaver-frontend:latest
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # Must be reachable from the user's browser — set to this host's IP or domain
+      NUXT_PUBLIC_API_BASE: http://CHANGEME:8072
+    depends_on:
+      - orbweaver
+
+volumes:
+  orbweaver-reviews:
+    driver: local
