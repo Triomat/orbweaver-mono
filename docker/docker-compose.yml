@@ -1,34 +1,63 @@
 name: orbweaver
 
 services:
-  # Standalone device-discovery — accepts policy POSTs on :8072
-  discovery:
+  # orbweaver backend — enhanced device-discovery with review workflow
+  orbweaver:
+    image: ghcr.io/triomat/orbweaver-backend:latest
     build:
-      context: ../backend
-      dockerfile: docker/Dockerfile
+      context: ..
+      dockerfile: docker/Dockerfile.orbweaver
     ports:
       - "8072:8072"
     command: >
-      device-discovery
-        -t grpc://${DIODE_HOST}:${DIODE_PORT}/diode
-        -c ${DIODE_CLIENT_ID}
-        -k ${DIODE_CLIENT_SECRET}
+      orbweaver
+        --host 0.0.0.0
+        --port 8072
+        --diode-target grpc://${DIODE_HOST}:${DIODE_PORT}/diode
+        --diode-client-id ${DIODE_CLIENT_ID}
+        --diode-client-secret ${DIODE_CLIENT_SECRET}
     environment:
-      - DIODE_HOST=${DIODE_HOST}
-      - DIODE_PORT=${DIODE_PORT}
-      - DIODE_CLIENT_ID=${DIODE_CLIENT_ID}
-      - DIODE_CLIENT_SECRET=${DIODE_CLIENT_SECRET}
+      - DIODE_TARGET=grpc://${DIODE_HOST}:${DIODE_PORT}/diode
+      - ORBWEAVER_REVIEW_DIR=/reviews
+      - ORBWEAVER_CORS_ORIGINS=*
+      - ORBWEAVER_ORB_AGENT_YML=/etc/orb/agent.yml
+      - ORBWEAVER_ORB_CONTAINER=orbweaver-agent-1
     volumes:
-      - ../../orb/ssh-napalm.conf:/opt/orb/ssh-napalm.conf:ro
+      - orbweaver-reviews:/reviews
+      - ./agent.local.yml:/etc/orb/agent.yml:ro
+      - ${SSH_CONFIG:-../../orb/ssh-napalm.conf}:/opt/orb/ssh-napalm.conf:ro
     restart: unless-stopped
 
-  # orb-agent with orbweaver's device-discovery swapped in
+  # orbweaver UI — Nuxt 4 review management interface
+  frontend:
+    image: ghcr.io/triomat/orbweaver-frontend:latest
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.frontend
+    ports:
+      - "3000:3000"
+    environment:
+      # Must be reachable from the user's browser — set ORBWEAVER_HOST to the
+      # host's IP or domain name in docker/.env
+      - NUXT_PUBLIC_API_BASE=http://${ORBWEAVER_HOST:-localhost}:8072
+      - NUXT_PUBLIC_ORB_API_BASE=http://${ORBWEAVER_HOST:-localhost}:8072
+    depends_on:
+      - orbweaver
+    restart: unless-stopped
+
+  # orb-agent — upstream orb-agent with orbweaver's backend installed
+  # Used for scheduled/policy-driven discovery via the agent YAML config.
   agent:
+    image: ghcr.io/triomat/orbweaver-agent:latest
     build:
       context: ..
       dockerfile: docker/Dockerfile.agent
     command: run -c /opt/orb/agent.yml
     volumes:
       - ./agent.local.yml:/opt/orb/agent.yml:ro
-      - ../../orb/ssh-napalm.conf:/opt/orb/ssh-napalm.conf:ro
+      - ${SSH_CONFIG:-../../orb/ssh-napalm.conf}:/opt/orb/ssh-napalm.conf:ro
     restart: unless-stopped
+
+volumes:
+  orbweaver-reviews:
+    driver: local

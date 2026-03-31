@@ -1,0 +1,36 @@
+FROM python:3.12-slim-bullseye AS builder
+
+WORKDIR /build
+
+# Copy upstream backend (device-discovery) and orbweaver extension
+COPY backend/ backend/
+COPY orbweaver/ orbweaver/
+
+# Install both into a single venv: backend first, then orbweaver extension.
+# orbweaver/pyproject.toml uses package-dir = ".." so setuptools resolves
+# the orbweaver package relative to /build (the WORKDIR parent of orbweaver/).
+RUN python -m venv /opt/venv && \
+    . /opt/venv/bin/activate && \
+    pip install --no-cache-dir ./backend && \
+    pip install --no-cache-dir ./orbweaver && \
+    deactivate
+
+# ── Runtime stage ─────────────────────────────────────────────────────────────
+FROM python:3.12-slim-bullseye
+
+RUN addgroup --system netdev && \
+    useradd -m --shell /bin/bash -G netdev appuser
+
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Review sessions are persisted here — mount a volume for durability
+RUN mkdir -p /reviews && chown appuser:appuser /reviews
+VOLUME ["/reviews"]
+
+EXPOSE 8072
+
+USER appuser
+
+# Default: dry-run (no Diode required). Override via docker-compose command.
+CMD ["orbweaver", "--host", "0.0.0.0", "--port", "8072", "--dry-run"]

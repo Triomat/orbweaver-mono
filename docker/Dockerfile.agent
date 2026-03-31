@@ -1,6 +1,8 @@
 FROM netboxlabs/orb-agent:latest
 
-# Replace the upstream device-discovery package with orbweaver's build
-COPY device-discovery/ /tmp/device-discovery/
+# Replace the upstream device-discovery package with orbweaver's backend.
+# Build context is the monorepo root — backend/ maps to device-discovery/ in
+# the standalone orbweaver fork, but lives under backend/ in orbweaver-mono.
+COPY backend/ /tmp/device-discovery/
 RUN pip install --no-cache-dir --upgrade /tmp/device-discovery && \
     rm -rf /tmp/device-discovery
