@@ -14,9 +14,9 @@ services:
       orbweaver
         --host 0.0.0.0
         --port 8072
-        --diode-target ${DIODE_TARGET}
-        --diode-client-id ${DIODE_CLIENT_ID}
-        --diode-client-secret ${DIODE_CLIENT_SECRET}
+        --diode-target $${DIODE_TARGET}
+        --diode-client-id $${DIODE_CLIENT_ID}
+        --diode-client-secret $${DIODE_CLIENT_SECRET}
     environment:
       # ── Diode ────────────────────────────────────────────────────────────────
       # Full gRPC target: grpc://<diode-host>:<port>/diode
