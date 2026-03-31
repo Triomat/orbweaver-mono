@@ -161,14 +161,6 @@ export interface PolicyRun {
   finished_at: string | null
 }
 
-export interface OrbAgentStatus {
-  container: string
-  running: boolean
-  state: string | null
-  discovery_status: Record<string, unknown> | null
-  error: string | null
-}
-
 // ── Config / Policy ───────────────────────────────────────────────────────
 
 export interface DiscoverJobResponse {

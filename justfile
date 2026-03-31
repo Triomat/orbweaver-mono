@@ -7,10 +7,7 @@ VENV       := ".venv/bin"
 DD_DIR     := "backend"
 UI_DIR     := "frontend"
 REVIEW_DIR    := "/tmp/orbweaver-reviews"
-ORB_AGENT_YML := "/home/cheddar/projects/netbox/orb/agent.yml"
-ORB_CONTAINER := "orb-agent"
 API_BASE   := "http://192.168.11.90:8073"
-ORB_BASE   := "http://192.168.11.90:8072"
 UI_PORT    := "3000"
 SCRIPTS    := justfile_directory() / "scripts"
 
@@ -29,8 +26,6 @@ install-backend:
 backend-start:
     ORBWEAVER_PORT=8073 \
     ORBWEAVER_REVIEW_DIR={{REVIEW_DIR}} \
-    ORBWEAVER_ORB_AGENT_YML={{ORB_AGENT_YML}} \
-    ORBWEAVER_ORB_CONTAINER={{ORB_CONTAINER}} \
     {{SCRIPTS}}/orbweaver-backend start
 
 # Stop orbweaver backend
@@ -47,8 +42,6 @@ backend-restart target="":
     fi
     export ORBWEAVER_PORT=8073
     export ORBWEAVER_REVIEW_DIR={{REVIEW_DIR}}
-    export ORBWEAVER_ORB_AGENT_YML={{ORB_AGENT_YML}}
-    export ORBWEAVER_ORB_CONTAINER={{ORB_CONTAINER}}
     if [[ -n "{{target}}" ]]; then
         export ORBWEAVER_DIODE_TARGET={{target}}
         export ORBWEAVER_DIODE_CLIENT_ID="${DIODE_CLIENT_ID:-}"
@@ -75,8 +68,6 @@ backend-live target="grpc://192.168.11.90:8080/diode":
     fi
     ORBWEAVER_PORT=8073 \
     ORBWEAVER_REVIEW_DIR={{REVIEW_DIR}} \
-    ORBWEAVER_ORB_AGENT_YML={{ORB_AGENT_YML}} \
-    ORBWEAVER_ORB_CONTAINER={{ORB_CONTAINER}} \
     ORBWEAVER_DIODE_TARGET={{target}} \
     ORBWEAVER_DIODE_CLIENT_ID="${DIODE_CLIENT_ID:-}" \
     ORBWEAVER_DIODE_CLIENT_SECRET="${DIODE_CLIENT_SECRET:-}" \
@@ -91,7 +82,6 @@ install-ui:
 # Start the Nuxt dev server
 ui-start:
     NUXT_PUBLIC_API_BASE={{API_BASE}} \
-    NUXT_PUBLIC_ORB_API_BASE={{ORB_BASE}} \
     ORBWEAVER_UI_PORT={{UI_PORT}} \
     {{SCRIPTS}}/orbweaver-ui start
 
@@ -102,7 +92,6 @@ ui-stop:
 # Restart the Nuxt dev server
 ui-restart:
     NUXT_PUBLIC_API_BASE={{API_BASE}} \
-    NUXT_PUBLIC_ORB_API_BASE={{ORB_BASE}} \
     ORBWEAVER_UI_PORT={{UI_PORT}} \
     {{SCRIPTS}}/orbweaver-ui restart
 
@@ -116,7 +105,7 @@ ui-logs:
 
 # Build the UI for production
 ui-build:
-    NUXT_PUBLIC_API_BASE={{API_BASE}} NUXT_PUBLIC_ORB_API_BASE={{ORB_BASE}} pnpm --dir {{UI_DIR}} build
+    NUXT_PUBLIC_API_BASE={{API_BASE}} pnpm --dir {{UI_DIR}} build
 
 # ── Seed data ────────────────────────────────────────────────────────────────
 
@@ -142,17 +131,15 @@ start target="":
     fi
     if [[ -n "{{target}}" ]]; then
         ORBWEAVER_PORT=8073 ORBWEAVER_REVIEW_DIR={{REVIEW_DIR}} \
-        ORBWEAVER_ORB_AGENT_YML={{ORB_AGENT_YML}} ORBWEAVER_ORB_CONTAINER={{ORB_CONTAINER}} \
         ORBWEAVER_DIODE_TARGET={{target}} \
         ORBWEAVER_DIODE_CLIENT_ID="${DIODE_CLIENT_ID:-}" \
         ORBWEAVER_DIODE_CLIENT_SECRET="${DIODE_CLIENT_SECRET:-}" \
         {{SCRIPTS}}/orbweaver-backend start
     else
         ORBWEAVER_PORT=8073 ORBWEAVER_REVIEW_DIR={{REVIEW_DIR}} \
-        ORBWEAVER_ORB_AGENT_YML={{ORB_AGENT_YML}} ORBWEAVER_ORB_CONTAINER={{ORB_CONTAINER}} \
         {{SCRIPTS}}/orbweaver-backend start
     fi
-    NUXT_PUBLIC_API_BASE={{API_BASE}} NUXT_PUBLIC_ORB_API_BASE={{ORB_BASE}} ORBWEAVER_UI_PORT={{UI_PORT}} {{SCRIPTS}}/orbweaver-ui start
+    NUXT_PUBLIC_API_BASE={{API_BASE}} ORBWEAVER_UI_PORT={{UI_PORT}} {{SCRIPTS}}/orbweaver-ui start
 
 # Stop backend + UI
 stop:
@@ -171,25 +158,17 @@ ps:
 
 # ── Docker (integration stack) ───────────────────────────────────────────────
 
-# Build and start orbweaver standalone via Docker (API on :8072)
+# Build and start the full stack via Docker
 docker-up:
-    docker compose -f docker/docker-compose.yml --env-file docker/.env up -d --build discovery
-
-# Build and start orbweaver inside orb-agent via Docker
-docker-up-agent:
-    docker compose -f docker/docker-compose.yml --env-file docker/.env up -d --build agent
+    docker compose -f docker/docker-compose.yml --env-file docker/.env up -d --build
 
 # Stop and remove all Docker containers
 docker-down:
     docker compose -f docker/docker-compose.yml down
 
-# Stream logs from Docker standalone container
+# Stream logs from Docker backend container
 docker-logs:
-    docker compose -f docker/docker-compose.yml logs -f discovery
-
-# Stream logs from Docker agent container
-docker-logs-agent:
-    docker compose -f docker/docker-compose.yml logs -f agent
+    docker compose -f docker/docker-compose.yml logs -f orbweaver
 
 # POST the example policy to the Docker stack
 docker-push-policy:
@@ -297,10 +276,6 @@ check-secrets:
 # Create docker/.env from template if it doesn't exist
 init-env:
     @test -f docker/.env || (cp docker/.env.example docker/.env && echo "Created docker/.env — fill in credentials before running containers.")
-
-# Create docker/agent.local.yml from template if it doesn't exist
-init-agent-local:
-    @test -f docker/agent.local.yml || (cp docker/agent.yml docker/agent.local.yml && echo "Created docker/agent.local.yml — fill in real credentials before running the agent.")
 
 # Install pre-commit hooks
 install-hooks:

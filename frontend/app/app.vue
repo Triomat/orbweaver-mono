@@ -25,13 +25,6 @@ const { data: status } = await useAsyncData('backend-status', () => api.getStatu
           >
             Reviews
           </NuxtLink>
-          <NuxtLink
-            to="/orb-agent"
-            class="text-muted-foreground transition-colors hover:text-foreground"
-            active-class="text-foreground font-medium"
-          >
-            orb-agent
-          </NuxtLink>
         </nav>
         <div class="ml-auto flex items-center gap-2">
           <template v-if="status">

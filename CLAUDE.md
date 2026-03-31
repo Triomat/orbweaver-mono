@@ -71,7 +71,7 @@ orbweaver-mono/
 │
 ├── frontend/                  ← orbweaver UI (Nuxt 4, shadcn-nuxt, Tailwind)
 │   ├── app/
-│   │   ├── pages/             (config, reviews, review/[id], orb-agent)
+│   │   ├── pages/             (config, reviews, review/[id])
 │   │   ├── composables/       (useApi, useReview, useConfig)
 │   │   └── components/ui/
 │   ├── nuxt.config.ts
@@ -83,19 +83,6 @@ orbweaver-mono/
 
 Legend: ✓ upstream untouched  /  ✦ orbweaver-only
 ```
-
----
-
-## Two distinct services (do NOT confuse them)
-
-| Service | What it is | Port | Managed by |
-|---|---|---|---|
-| **orbweaver** | This repo — enhanced device-discovery + review workflow | 8073 (dev), 8072 (Docker) | `just start` / `just docker-up` |
-| **orb-agent** | Original `netboxlabs/orb-agent:latest` — unmodified, for showcase | internal only | `just orb-agent-create` (once), then `just orb-agent-start` |
-
-- `orb-agent` is NOT managed by orbweaver's docker-compose — it is a standalone container
-- The `ORB_CONTAINER` justfile variable always refers to the original `orb-agent` container
-- orbweaver backend uses `docker exec -i orb-agent` to trigger discovery inside the original agent for the showcase comparison
 
 ---
 
@@ -166,7 +153,7 @@ Three methods are monkey-patched onto `PolicyRunner`:
 Imports the upstream `app` object and extends it in-place:
 - CORS middleware (origins from `ORBWEAVER_CORS_ORIGINS` env var)
 - Overrides `/api/v1/status` with enhanced response (adds `reviews`, `dry_run`, `diode_target`)
-- New routes: collectors, discover, reviews CRUD, ingest, compare, orb-agent
+- New routes: collectors, discover, reviews CRUD, ingest, compare
 
 ### Data flow
 
@@ -293,10 +280,9 @@ just install-ui        # installs frontend node deps
 
 | Command | What it does |
 |---|---|
-| `just docker-up` | Build + start standalone orbweaver (port 8072) |
-| `just docker-up-agent` | Build + start orbweaver inside orb-agent |
+| `just docker-up` | Build + start orbweaver stack (backend port 8072, UI port 3000) |
 | `just docker-down` | Stop all Docker containers |
-| `just docker-logs` | Tail standalone container logs |
+| `just docker-logs` | Tail backend container logs |
 
 ---
 
@@ -309,7 +295,6 @@ Stack: Nuxt 4, shadcn-nuxt, Tailwind CSS, VueUse
 | `frontend/app/pages/config.vue` | Trigger discover-and-hold |
 | `frontend/app/pages/reviews.vue` | List all review sessions |
 | `frontend/app/pages/review/[id].vue` | Review, accept/reject, ingest |
-| `frontend/app/pages/orb-agent.vue` | orb-agent config + trigger (showcase) |
 | `frontend/app/composables/useApi.ts` | Base HTTP client |
 | `frontend/app/composables/useReview.ts` | Review session state |
 | `frontend/app/composables/useConfig.ts` | Discovery config state |
@@ -317,65 +302,6 @@ Stack: Nuxt 4, shadcn-nuxt, Tailwind CSS, VueUse
 API base URL: `NUXT_PUBLIC_API_BASE` env var (default: `http://localhost:8073`)
 
 The frontend calls `/api/v1/status` and all orbweaver-only endpoints. The upstream-only endpoints (`/api/v1/capabilities`, `/api/v1/policies`) are available but not directly used by the UI.
-
----
-
-## Showcase: orbweaver vs standard orb-agent (side-by-side)
-
-### The two paths being compared
-
-**Standard orb-agent** (`netboxlabs/orb-agent:latest`, container `orb-agent`):
-- Configured via `/home/cheddar/projects/netbox/orb/agent.yml`
-- Triggered from orbweaver-ui `/orb-agent` page via `POST /api/v1/orb-agent/trigger`
-  → orbweaver backend uses `docker exec -i orb-agent python3 -c "..."` to POST to internal API
-- Uses standard NAPALM only (`driver: ios`), ingests directly to NetBox via Diode
-
-**orbweaver** (local dev backend at :8073):
-- Triggered from orbweaver-ui `/config` page
-- Uses vendor collectors (`collector: cisco_ios`) for richer data
-- Stores results in a review session — requires human accept/ingest step
-
-### YAML format differences
-
-**agent.yml** (orb-agent format — nested under `orb.policies.device_discovery`):
-```yaml
-orb:
-  policies:
-    device_discovery:
-      discovery_1:
-        config:
-          schedule: "* * * * *"
-          defaults:
-            site: netboxlabs
-        scope:
-          - driver: ios
-            hostname: 192.168.110.10
-```
-
-**Policy YAML** (standalone API format — `POST /api/v1/policies`):
-```yaml
-policies:
-  discovery_1:
-    config:
-      defaults:
-        site: netboxlabs
-    scope:
-      - driver: ios
-        hostname: 192.168.110.10
-```
-
-The orbweaver-ui `/orb-agent` page handles this conversion automatically when triggering.
-
-### orb-agent endpoints added in orbweaver/app.py
-
-- `GET  /api/v1/orb-agent/status`  — docker inspect + docker exec status
-- `GET  /api/v1/orb-agent/config`  — reads `ORBWEAVER_ORB_AGENT_YML` from disk
-- `POST /api/v1/orb-agent/config`  — writes file + runs `docker restart ORBWEAVER_ORB_CONTAINER`
-- `POST /api/v1/orb-agent/trigger` — docker-execs python3 into orb-agent to DELETE+POST policy
-
-Required env vars (set in justfile):
-- `ORBWEAVER_ORB_AGENT_YML=/home/cheddar/projects/netbox/orb/agent.yml`
-- `ORBWEAVER_ORB_CONTAINER=orb-agent`
 
 ---
 

@@ -25,8 +25,6 @@ jobs:
             dockerfile: docker/Dockerfile.orbweaver
           - name: orbweaver-frontend
             dockerfile: docker/Dockerfile.frontend
-          - name: orbweaver-agent
-            dockerfile: docker/Dockerfile.agent
 
     steps:
       - name: Checkout
