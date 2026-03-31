@@ -18,3 +18,4 @@ venv/
 
 # Local secret files — never commit these
 docker/.env
+orbweaver-compose.yml
