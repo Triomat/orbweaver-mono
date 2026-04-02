@@ -17,8 +17,11 @@ logger = logging.getLogger(__name__)
 # The upstream Napalm model is extended in-place; no upstream file is touched.
 
 from pydantic.fields import FieldInfo  # noqa: E402
-from device_discovery.policy.models import Napalm  # noqa: E402
+from device_discovery.policy.models import Napalm, Policy, PolicyRequest  # noqa: E402
 
+# model_rebuild() uses __annotations__ as its source of truth, so we must update
+# it alongside model_fields — otherwise the new field is silently dropped.
+Napalm.__annotations__["collector"] = str | None
 Napalm.model_fields["collector"] = FieldInfo(
     default=None,
     annotation=str | None,
@@ -27,7 +30,11 @@ Napalm.model_fields["collector"] = FieldInfo(
         "When set, uses the orbweaver collector framework instead of the generic NAPALM path."
     ),
 )
+# Rebuild Napalm and all parent models that embed its schema (Policy, PolicyRequest),
+# so their cached core validators reflect the new field.
 Napalm.model_rebuild(force=True)
+Policy.model_rebuild(force=True)
+PolicyRequest.model_rebuild(force=True)
 
 
 # ── 2. Extend PolicyRunner with vendor collector support ──────────────────────
