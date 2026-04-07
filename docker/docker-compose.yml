@@ -3,7 +3,7 @@ name: orbweaver
 services:
   # orbweaver backend — enhanced device-discovery with review workflow
   orbweaver:
-    image: ghcr.io/triomat/orbweaver-backend:latest
+    image: ghcr.io/triomat/orbweaver-backend:${TAG:-latest}
     build:
       context: ..
       dockerfile: docker/Dockerfile.orbweaver
@@ -27,7 +27,7 @@ services:
 
   # orbweaver UI — Nuxt 4 review management interface
   frontend:
-    image: ghcr.io/triomat/orbweaver-frontend:latest
+    image: ghcr.io/triomat/orbweaver-frontend:${TAG:-latest}
     build:
       context: ..
       dockerfile: docker/Dockerfile.frontend
