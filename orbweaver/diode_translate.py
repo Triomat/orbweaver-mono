@@ -105,19 +105,40 @@ def translate_single_device(device: NormalizedDevice, defaults: Defaults) -> lis
         if vlan_entity:
             entities.append(Entity(vlan=vlan_entity))
 
-    # 4. Set primary IPs last — NetBox requires the IP to already be assigned
-    #    to an interface before it can be designated as primary on the device.
-    if device.primary_ip4 or device.primary_ip6:
-        entities.append(Entity(device=Device(
-            name=diode_device.name,
-            site=diode_device.site,
-            device_type=diode_device.device_type,
-            role=diode_device.role,
-            primary_ip4=device.primary_ip4 or None,
-            primary_ip6=device.primary_ip6 or None,
-        )))
+    # NOTE: primary_ip4/ip6 are intentionally NOT set here.
+    # NetBox requires the IP to already be assigned to an interface before it can
+    # be designated as primary on the device. Sending both in the same ingest batch
+    # causes a race condition in the Diode reconciler (concurrent processing means
+    # the primary-IP update may be applied before the interface IP assignment is
+    # committed). Callers should use translate_primary_ip_entities() and send a
+    # second ingest call after the main entities have been reconciled.
 
     return entities
+
+
+def translate_primary_ip_entities(device: NormalizedDevice, defaults: Defaults) -> list[Entity]:
+    """
+    Return a Device Entity that sets only primary_ip4/primary_ip6.
+
+    This must be ingested in a **separate** call AFTER the main entity batch
+    (interfaces + IP address assignments) from translate_single_device() has been
+    processed by the Diode reconciler.  NetBox rejects setting primary_ip4 if the
+    IP is not yet assigned to one of the device's interfaces.
+
+    Returns an empty list if the device has no primary IPs to set.
+    """
+    if not device.primary_ip4 and not device.primary_ip6:
+        return []
+
+    diode_device = _translate_device(device, defaults)
+    return [Entity(device=Device(
+        name=diode_device.name,
+        site=diode_device.site,
+        device_type=diode_device.device_type,
+        role=diode_device.role,
+        primary_ip4=device.primary_ip4 or None,
+        primary_ip6=device.primary_ip6 or None,
+    ))]
 
 
 # ---------------------------------------------------------------------------
