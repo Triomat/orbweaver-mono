@@ -16,7 +16,10 @@ Adds:
 """
 from __future__ import annotations
 
+import logging
 import os
+
+logger = logging.getLogger(__name__)
 
 from fastapi import BackgroundTasks, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -170,8 +173,24 @@ def _background_discover(policy_request: PolicyRequest, policy_name: str, review
     session.defaults = tmp_session.defaults
     session.status = tmp_session.status
     session.error = tmp_session.error
-    review_store.save(session)
     review_store.delete(tmp_session.id)
+
+    auto_ingest = bool(policy.config and getattr(policy.config, "auto_ingest", False))
+    if auto_ingest and session.status == ReviewStatus.READY:
+        logger.info("Review %s: auto_ingest=true, skipping review and ingesting directly", review_id)
+        for item in session.devices:
+            item.status = ItemStatus.ACCEPTED
+        defaults = Defaults.model_validate(session.defaults) if session.defaults else Defaults()
+        result = _execute_ingest(session, defaults, [ItemStatus.ACCEPTED])
+        if result["errors"]:
+            session.status = ReviewStatus.FAILED
+            session.error = "; ".join(result["errors"])
+            logger.warning("Review %s: auto-ingest completed with errors: %s", review_id, session.error)
+        else:
+            session.status = ReviewStatus.INGESTED
+            logger.info("Review %s: auto-ingest complete — %d entities ingested", review_id, result["ingested_count"])
+
+    review_store.save(session)
 
 
 @app.post("/api/v1/discover", status_code=202)
@@ -326,22 +345,21 @@ class IngestResponse(BaseModel):
     errors: list[str] = []
 
 
-@app.post("/api/v1/reviews/{review_id}/ingest")
-def ingest_review(review_id: str, body: IngestRequest):
-    """Ingest accepted device items into NetBox via the Diode SDK."""
-    session = review_store.get(review_id)
-    if session is None:
-        raise HTTPException(status_code=404, detail=f"Review '{review_id}' not found")
-    if session.status == ReviewStatus.PENDING:
-        raise HTTPException(status_code=409, detail="Discovery is still in progress for this review")
+def _execute_ingest(session, defaults: Defaults, statuses: list, dry_run: bool = False) -> dict:
+    """
+    Translate accepted review items and push entities to Diode.
 
-    defaults = Defaults.model_validate(session.defaults) if session.defaults else Defaults()
+    Returns an IngestResponse-compatible dict. Does not raise HTTP exceptions —
+    callers decide how to surface errors.
+    """
     entities_to_ingest = []
     ingest_errors: list[str] = []
     skipped = 0
 
+    logger.info("Review %s: ingesting %d device(s)", session.id, len(session.devices))
+
     for item in session.devices:
-        if item.status not in body.statuses:
+        if item.status not in statuses:
             skipped += 1
             continue
         try:
@@ -352,20 +370,14 @@ def ingest_review(review_id: str, body: IngestRequest):
             name = item.data.get("name", f"index={item.index}")
             ingest_errors.append(f"{name}: {exc}")
 
-    if not body.dry_run and entities_to_ingest:
-        try:
-            client = Client()
-            response = client.diode_client.ingest(
-                entities=entities_to_ingest,
-                metadata={"review_id": review_id},
-            )
-            if response.errors:
-                ingest_errors.extend(response.errors)
-            else:
-                session.status = ReviewStatus.INGESTED
-                review_store.save(session)
-        except Exception as exc:
-            raise HTTPException(status_code=500, detail=f"Ingest failed: {exc}") from exc
+    if not dry_run and entities_to_ingest:
+        client = Client()
+        response = client.diode_client.ingest(
+            entities=entities_to_ingest,
+            metadata={"review_id": session.id},
+        )
+        if response.errors:
+            ingest_errors.extend(str(e) for e in response.errors)
 
     summary = IngestSummary()
     for entity in entities_to_ingest:
@@ -381,18 +393,50 @@ def ingest_review(review_id: str, body: IngestRequest):
             summary.prefixes += 1
 
     for item in session.devices:
-        if item.status in body.statuses:
+        if item.status in statuses:
             summary.lldp_neighbors += len(item.data.get("lldp_neighbors", []))
 
-    ingested = len([i for i in session.devices if i.status in body.statuses]) - len(ingest_errors) - skipped
+    if ingest_errors:
+        logger.warning("Review %s: ingest completed with errors: %s", session.id, ingest_errors)
+    else:
+        logger.info(
+            "Review %s: ingested %d entities (devices=%d interfaces=%d ips=%d vlans=%d prefixes=%d)",
+            session.id, len(entities_to_ingest),
+            summary.devices, summary.interfaces, summary.ip_addresses,
+            summary.vlans, summary.prefixes,
+        )
+
     return IngestResponse(
-        review_id=review_id,
-        dry_run=body.dry_run,
+        review_id=session.id,
+        dry_run=dry_run,
         ingested_count=len(entities_to_ingest),
         skipped_count=skipped,
         summary=summary,
         errors=ingest_errors,
     ).model_dump()
+
+
+@app.post("/api/v1/reviews/{review_id}/ingest")
+def ingest_review(review_id: str, body: IngestRequest):
+    """Ingest accepted device items into NetBox via the Diode SDK."""
+    session = review_store.get(review_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail=f"Review '{review_id}' not found")
+    if session.status == ReviewStatus.PENDING:
+        raise HTTPException(status_code=409, detail="Discovery is still in progress for this review")
+
+    defaults = Defaults.model_validate(session.defaults) if session.defaults else Defaults()
+
+    try:
+        result = _execute_ingest(session, defaults, body.statuses, dry_run=body.dry_run)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Ingest failed: {exc}") from exc
+
+    if not body.dry_run and not result["errors"]:
+        session.status = ReviewStatus.INGESTED
+        review_store.save(session)
+
+    return result
 
 
 # ── Compare ───────────────────────────────────────────────────────────────────

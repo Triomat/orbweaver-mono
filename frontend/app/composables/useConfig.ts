@@ -21,6 +21,7 @@ export interface DeviceEntry {
 export interface PolicyForm {
   name: string
   defaults: { site: string; role: string; tags: string }
+  autoIngest: boolean
   devices: DeviceEntry[]
 }
 
@@ -32,6 +33,7 @@ function defaultPolicy(): PolicyForm {
   return {
     name: 'my-discovery',
     defaults: { site: '', role: '', tags: '' },
+    autoIngest: false,
     devices: [defaultDevice()],
   }
 }
@@ -59,10 +61,12 @@ function formToYaml(policy: PolicyForm): string {
     defaults.tags = policy.defaults.tags.split(',').map((t) => t.trim()).filter(Boolean)
   }
 
+  const configObj: Record<string, unknown> = {}
+  if (policy.autoIngest) configObj.auto_ingest = true
+  if (Object.keys(defaults).length > 0) configObj.defaults = defaults
+
   const policyObj: Record<string, unknown> = { scope }
-  if (Object.keys(defaults).length > 0) {
-    policyObj.config = { defaults }
-  }
+  if (Object.keys(configObj).length > 0) policyObj.config = configObj
 
   return jsYaml.dump({ policies: { [policy.name]: policyObj } }, { lineWidth: -1 })
 }
@@ -101,6 +105,7 @@ function yamlToForm(yamlStr: string): PolicyForm | null {
         role: String(defaults.role ?? ''),
         tags,
       },
+      autoIngest: config?.auto_ingest === true,
       devices: devices.length > 0 ? devices : [defaultDevice()],
     }
   } catch {

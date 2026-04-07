@@ -94,6 +94,26 @@ function togglePassword(index: number) {
               placeholder="prod, discovered"
             />
           </div>
+
+          <div class="flex items-start justify-between rounded-md border px-3 py-2.5">
+            <div>
+              <p class="text-sm font-medium leading-none">Auto-ingest</p>
+              <p class="mt-1 text-xs text-muted-foreground">Skip review — discovered devices are sent directly to NetBox</p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              :aria-checked="policy.autoIngest"
+              class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              :class="policy.autoIngest ? 'bg-primary' : 'bg-input'"
+              @click="policy.autoIngest = !policy.autoIngest"
+            >
+              <span
+                class="pointer-events-none block h-4 w-4 rounded-full bg-background shadow-lg transition-transform"
+                :class="policy.autoIngest ? 'translate-x-4' : 'translate-x-0'"
+              />
+            </button>
+          </div>
         </div>
 
         <!-- Devices -->
@@ -268,6 +288,9 @@ function togglePassword(index: number) {
           <li>You accept/reject devices on the Review page</li>
           <li>Accepted devices are ingested into NetBox via Diode SDK</li>
         </ol>
+        <p class="mt-3 text-xs text-muted-foreground border-t pt-3">
+          <span class="font-medium">Auto-ingest</span> skips steps 3–4: all devices are accepted and pushed to NetBox immediately. The session is still recorded for audit.
+        </p>
       </div>
     </div>
   </div>
