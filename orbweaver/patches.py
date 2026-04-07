@@ -66,7 +66,7 @@ from device_discovery.policy.models import Defaults  # noqa: E402
 from device_discovery.metrics import get_metric  # noqa: E402
 from netboxlabs.diode.sdk import create_message_chunks, estimate_message_size  # noqa: E402
 from orbweaver.collectors.registry import get_collector, list_collectors  # noqa: E402
-from orbweaver.diode_translate import translate_single_device  # noqa: E402
+from orbweaver.diode_translate import translate_primary_ip_entities, translate_single_device  # noqa: E402
 
 
 def _select_collector(self, scope):
@@ -130,7 +130,9 @@ def _collect_device_data_via_collector(self, scope, sanitized_hostname, config, 
     )
 
     normalized_device = collector.discover_single(sanitized_hostname)
-    entities = translate_single_device(normalized_device, config.defaults or Defaults())
+    _defaults = config.defaults or Defaults()
+    entities = translate_single_device(normalized_device, _defaults)
+    primary_ip_ents = translate_primary_ip_entities(normalized_device, _defaults)
     metadata = {"policy_name": self.name, "hostname": sanitized_hostname}
 
     client = Client()
@@ -160,6 +162,21 @@ def _collect_device_data_via_collector(self, scope, sanitized_hostname, config, 
             "Hostname %s: Successfully ingested %d entities",
             sanitized_hostname, entity_count,
         )
+
+    # Second ingest call: set primary_ip4/ip6 after the interface IP assignments
+    # are committed. Sending them in the same batch causes a race condition.
+    if primary_ip_ents:
+        if run_id:
+            apply_run_id_to_entities(primary_ip_ents, run_id)
+        response = client.diode_client.ingest(
+            entities=primary_ip_ents,
+            metadata={**metadata, "pass": "primary_ips"},
+        )
+        if response.errors:
+            raise RuntimeError(
+                f"Primary IP ingest failed for {sanitized_hostname}: {response.errors}"
+            )
+        logger.info("Hostname %s: primary IPs set", sanitized_hostname)
 
     discovery_success = get_metric("discovery_success")
     if discovery_success:

@@ -36,7 +36,7 @@ from device_discovery.version import version_semver
 
 # ── Orbweaver imports ─────────────────────────────────────────────────────────
 from orbweaver.collectors.registry import get_collector, list_collectors
-from orbweaver.diode_translate import translate_single_device
+from orbweaver.diode_translate import translate_primary_ip_entities, translate_single_device
 from orbweaver.review.compare import CompareConfig, compare_review_with_netbox
 from orbweaver.review.models import ItemStatus, ReviewItem, ReviewStatus
 from orbweaver.review.rebuild import device_from_dict
@@ -353,6 +353,7 @@ def _execute_ingest(session, defaults: Defaults, statuses: list, dry_run: bool =
     callers decide how to surface errors.
     """
     entities_to_ingest = []
+    primary_ip_entities: list = []
     ingest_errors: list[str] = []
     skipped = 0
 
@@ -366,15 +367,30 @@ def _execute_ingest(session, defaults: Defaults, statuses: list, dry_run: bool =
             device = device_from_dict(item.data)
             entities = list(translate_single_device(device, defaults))
             entities_to_ingest.extend(entities)
+            primary_ip_entities.extend(translate_primary_ip_entities(device, defaults))
         except Exception as exc:
             name = item.data.get("name", f"index={item.index}")
             ingest_errors.append(f"{name}: {exc}")
 
     if not dry_run and entities_to_ingest:
         client = Client()
+        # First call: device, interfaces, IPs, VLANs — everything except primary IPs.
         response = client.diode_client.ingest(
             entities=entities_to_ingest,
             metadata={"review_id": session.id},
+        )
+        if response.errors:
+            ingest_errors.extend(str(e) for e in response.errors)
+
+    if not dry_run and primary_ip_entities and not ingest_errors:
+        # Second call: set primary_ip4/ip6 after the interface IP assignments are
+        # committed. The Diode reconciler processes batches concurrently, so sending
+        # primary IPs in the same batch as the interface assignments causes a race
+        # condition ("IP not assigned to this device" error from NetBox).
+        client = Client()
+        response = client.diode_client.ingest(
+            entities=primary_ip_entities,
+            metadata={"review_id": session.id, "pass": "primary_ips"},
         )
         if response.errors:
             ingest_errors.extend(str(e) for e in response.errors)
