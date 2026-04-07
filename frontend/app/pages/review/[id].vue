@@ -44,6 +44,8 @@ async function handleIngest() {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
+const readonly = computed(() => session.value?.status === 'ingested')
+
 const statusColor: Record<ItemStatus, string> = {
   pending: 'bg-yellow-50 text-yellow-700 border-yellow-200',
   accepted: 'bg-green-50 text-green-700 border-green-200',
@@ -169,7 +171,7 @@ const filteredDevices = computed(() => {
           <option value="accepted">Accepted</option>
           <option value="rejected">Rejected</option>
         </select>
-        <div class="ml-auto flex gap-2">
+        <div v-if="!readonly" class="ml-auto flex gap-2">
           <button
             class="rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-green-50 hover:border-green-300 hover:text-green-700"
             @click="acceptAll"
@@ -197,7 +199,7 @@ const filteredDevices = computed(() => {
               <th class="px-4 py-3 text-left font-medium">Role</th>
               <th class="px-4 py-3 text-right font-medium">Interfaces</th>
               <th class="px-4 py-3 text-center font-medium">Status</th>
-              <th class="px-4 py-3" />
+              <th v-if="!readonly" class="px-4 py-3" />
             </tr>
           </thead>
           <tbody>
@@ -235,7 +237,7 @@ const filteredDevices = computed(() => {
                   {{ item.status }}
                 </span>
               </td>
-              <td class="px-4 py-3">
+              <td v-if="!readonly" class="px-4 py-3">
                 <div class="flex items-center justify-end gap-1">
                   <button
                     v-if="item.status !== 'accepted'"
