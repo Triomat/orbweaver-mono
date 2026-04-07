@@ -219,12 +219,7 @@ function togglePassword(index: number) {
       <!-- YAML tab -->
       <div v-if="activeTab === 'yaml'">
         <label class="mb-1 block text-sm font-medium">Policy YAML</label>
-        <textarea
-          v-model="yaml"
-          class="w-full rounded-md border bg-background font-mono text-xs p-3 focus:outline-none focus:ring-2 focus:ring-ring resize-none"
-          rows="22"
-          spellcheck="false"
-        />
+        <YamlEditor v-model="yaml" :rows="22" />
       </div>
 
       <!-- Discover error -->
