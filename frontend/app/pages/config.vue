@@ -85,6 +85,17 @@ function togglePassword(index: number) {
               />
             </div>
           </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="mb-1 block text-xs text-muted-foreground">Tenant</label>
+              <input
+                v-model="policy.defaults.tenant"
+                type="text"
+                class="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                placeholder="acme-corp"
+              />
+            </div>
+          </div>
           <div>
             <label class="mb-1 block text-xs text-muted-foreground">Tags (comma-separated)</label>
             <input

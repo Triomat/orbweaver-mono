@@ -177,6 +177,12 @@ def _translate_device(device: NormalizedDevice, defaults: Defaults) -> Device:
     # Tags from defaults
     tags = list(defaults.tags) if defaults.tags else []
 
+    # Tenant: use defaults.tenant (str or TenantParameters)
+    tenant = None
+    if defaults.tenant:
+        from device_discovery.translate import translate_tenant
+        tenant = translate_tenant(defaults.tenant)
+
     return Device(
         name=device.name,
         device_type=DeviceType(
@@ -190,6 +196,7 @@ def _translate_device(device: NormalizedDevice, defaults: Defaults) -> Device:
         site=site_name,
         tags=tags,
         comments=device.comments or None,
+        tenant=tenant,
     )
 
 
