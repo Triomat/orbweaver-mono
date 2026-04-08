@@ -38,11 +38,11 @@ export function useApi() {
 
   // ── Discover ────────────────────────────────────────────────────────────
 
-  function triggerDiscover(yamlBody: string): Promise<DiscoverJobResponse> {
+  function triggerDiscover(body: string, contentType: string = 'application/x-yaml'): Promise<DiscoverJobResponse> {
     return $fetch(url('/api/v1/discover'), {
       method: 'POST',
-      body: yamlBody,
-      headers: { 'Content-Type': 'application/x-yaml' },
+      body,
+      headers: { 'Content-Type': contentType },
     })
   }
 
