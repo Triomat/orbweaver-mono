@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 
-const { policy, yaml, activeTab, tabError, discovering, discoverError, switchTab, addDevice, removeDevice, triggerDiscover } = useConfig()
+const { policy, yaml, jsonText, activeTab, tabError, discovering, discoverError, switchTab, addDevice, removeDevice, triggerDiscover } = useConfig()
 const api = useApi()
 
 const { data: capData } = await useAsyncData('collectors', () => api.listCollectors())
@@ -38,6 +38,15 @@ function togglePassword(index: number) {
           @click="switchTab('yaml')"
         >
           YAML
+        </button>
+        <button
+          class="px-4 py-2 text-sm font-medium transition-colors"
+          :class="activeTab === 'json'
+            ? 'border-b-2 border-primary text-primary'
+            : 'text-muted-foreground hover:text-foreground'"
+          @click="switchTab('json')"
+        >
+          JSON
         </button>
       </div>
 
@@ -231,6 +240,12 @@ function togglePassword(index: number) {
       <div v-if="activeTab === 'yaml'">
         <label class="mb-1 block text-sm font-medium">Policy YAML</label>
         <YamlEditor v-model="yaml" :rows="22" />
+      </div>
+
+      <!-- JSON tab -->
+      <div v-if="activeTab === 'json'">
+        <label class="mb-1 block text-sm font-medium">Policy JSON</label>
+        <JsonEditor v-model="jsonText" :rows="22" />
       </div>
 
       <!-- Discover error -->

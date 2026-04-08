@@ -37,26 +37,30 @@ from device_discovery.policy.models import Defaults, PolicyRequest
 from device_discovery.server import app, manager, parse_yaml_body, start_time
 from device_discovery.version import version_semver
 
-_YAML_CONTENT_TYPES = {"application/x-yaml", "text/yaml", "application/yaml"}
+_ACCEPTED_CONTENT_TYPES = {
+    "application/x-yaml", "text/yaml", "application/yaml",
+    "application/json",
+}
 
 
 async def _parse_yaml_body_lenient(request: Request) -> PolicyRequest:
-    """Like upstream parse_yaml_body but accepts all common YAML content types.
+    """Like upstream parse_yaml_body but accepts all common YAML and JSON content types.
 
-    Used for orbweaver-owned endpoints so tools like n8n (which send text/yaml)
-    are not rejected by the strict upstream check.
+    JSON is valid YAML 1.2 so yaml.safe_load() parses it natively — no separate
+    JSON parser branch needed. Used for orbweaver-owned endpoints so tools like
+    n8n (which send text/yaml or application/json) are not rejected.
     """
     ct = request.headers.get("content-type", "").split(";")[0].strip()
-    if ct not in _YAML_CONTENT_TYPES:
+    if ct not in _ACCEPTED_CONTENT_TYPES:
         raise HTTPException(
             status_code=400,
-            detail=f"invalid Content-Type '{ct}'. Accepted: {', '.join(sorted(_YAML_CONTENT_TYPES))}",
+            detail=f"invalid Content-Type '{ct}'. Accepted: {', '.join(sorted(_ACCEPTED_CONTENT_TYPES))}",
         )
     body = await request.body()
     try:
         return manager.parse_policy(body)
     except yaml.YAMLError as e:
-        raise HTTPException(status_code=400, detail="Invalid YAML format") from e
+        raise HTTPException(status_code=400, detail="Invalid YAML/JSON format") from e
     except ValidationError as e:
         errors = [
             {"field": ".".join(str(p) for p in err["loc"]), "type": err["type"], "error": err["msg"]}
