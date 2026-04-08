@@ -29,10 +29,42 @@ from starlette.routing import Route
 # ── Upstream imports ──────────────────────────────────────────────────────────
 # Importing device_discovery.server here triggers the module to load (and
 # register all upstream routes). Patches are already applied at this point.
+import yaml
+from pydantic import ValidationError
+
 from device_discovery.client import Client
 from device_discovery.policy.models import Defaults, PolicyRequest
 from device_discovery.server import app, manager, parse_yaml_body, start_time
 from device_discovery.version import version_semver
+
+_YAML_CONTENT_TYPES = {"application/x-yaml", "text/yaml", "application/yaml"}
+
+
+async def _parse_yaml_body_lenient(request: Request) -> PolicyRequest:
+    """Like upstream parse_yaml_body but accepts all common YAML content types.
+
+    Used for orbweaver-owned endpoints so tools like n8n (which send text/yaml)
+    are not rejected by the strict upstream check.
+    """
+    ct = request.headers.get("content-type", "").split(";")[0].strip()
+    if ct not in _YAML_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"invalid Content-Type '{ct}'. Accepted: {', '.join(sorted(_YAML_CONTENT_TYPES))}",
+        )
+    body = await request.body()
+    try:
+        return manager.parse_policy(body)
+    except yaml.YAMLError as e:
+        raise HTTPException(status_code=400, detail="Invalid YAML format") from e
+    except ValidationError as e:
+        errors = [
+            {"field": ".".join(str(p) for p in err["loc"]), "type": err["type"], "error": err["msg"]}
+            for err in e.errors()
+        ]
+        raise HTTPException(status_code=403, detail=errors) from e
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 # ── Orbweaver imports ─────────────────────────────────────────────────────────
 from orbweaver.collectors.registry import get_collector, list_collectors
@@ -196,7 +228,7 @@ def _background_discover(policy_request: PolicyRequest, policy_name: str, review
 @app.post("/api/v1/discover", status_code=202)
 async def trigger_discover(
     background_tasks: BackgroundTasks,
-    request: PolicyRequest = Depends(parse_yaml_body),
+    request: PolicyRequest = Depends(_parse_yaml_body_lenient),
 ):
     """Trigger a one-shot discovery run that stores results for review."""
     if not request.policies:
