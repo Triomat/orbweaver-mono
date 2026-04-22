@@ -425,7 +425,7 @@ def _execute_ingest(session, defaults: Defaults, statuses: list, dry_run: bool =
         # primary IPs in the same batch as the interface assignments causes a race
         # condition ("IP not assigned to this device" error from NetBox). A delay
         # lets pass 1 reconcile before pass 2 is submitted.
-        time.sleep(2)
+        time.sleep(10)
         client = Client()
         response = client.diode_client.ingest(
             entities=primary_ip_entities,

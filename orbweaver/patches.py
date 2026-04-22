@@ -169,7 +169,7 @@ def _collect_device_data_via_collector(self, scope, sanitized_hostname, config, 
     # pass 2 tries to designate a primary IP (NetBox rejects it if the IP isn't
     # yet assigned to a device interface).
     if primary_ip_ents:
-        time.sleep(2)
+        time.sleep(10)
         if run_id:
             apply_run_id_to_entities(primary_ip_ents, run_id)
         response = client.diode_client.ingest(
