@@ -104,6 +104,15 @@ function togglePassword(index: number) {
                 placeholder="acme-corp"
               />
             </div>
+            <div>
+              <label class="mb-1 block text-xs text-muted-foreground">Rack</label>
+              <input
+                v-model="policy.defaults.rack"
+                type="text"
+                class="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                placeholder="Rack-A1"
+              />
+            </div>
           </div>
           <div>
             <label class="mb-1 block text-xs text-muted-foreground">Tags (comma-separated)</label>
@@ -224,6 +233,16 @@ function togglePassword(index: number) {
                   class="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 />
               </div>
+            </div>
+
+            <div>
+              <label class="mb-1 block text-xs text-muted-foreground">Rack (override)</label>
+              <input
+                v-model="device.rack"
+                type="text"
+                class="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                placeholder="leave blank to use default"
+              />
             </div>
           </div>
 
