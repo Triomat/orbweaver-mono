@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 # The upstream Napalm model is extended in-place; no upstream file is touched.
 
 from pydantic.fields import FieldInfo  # noqa: E402
-from device_discovery.policy.models import Config, Napalm, Policy, PolicyRequest  # noqa: E402
+from device_discovery.policy.models import Config, Defaults, Napalm, Policy, PolicyRequest  # noqa: E402
 
 # model_rebuild() uses __annotations__ as its source of truth, so we must update
 # it alongside model_fields — otherwise the new field is silently dropped.
@@ -43,14 +43,12 @@ Napalm.model_fields["rack"] = FieldInfo(
 )
 
 # ── 1d. Add rack field to Defaults (policy-level rack default) ───────────────
-from device_discovery.policy.models import Defaults  # noqa: E402
 Defaults.__annotations__["rack"] = str | None
 Defaults.model_fields["rack"] = FieldInfo(
     default=None,
     annotation=str | None,
     description="Rack name to assign all devices in this policy to in NetBox.",
 )
-Defaults.model_rebuild(force=True)
 
 # ── 1b. Add auto_ingest flag to Config ───────────────────────────────────────
 Config.__annotations__["auto_ingest"] = bool
@@ -64,7 +62,8 @@ Config.model_fields["auto_ingest"] = FieldInfo(
 )
 
 # Rebuild all models that embed the patched types so their cached validators
-# reflect the new fields.
+# reflect the new fields. Defaults must come before Config (Config embeds Defaults).
+Defaults.model_rebuild(force=True)
 Napalm.model_rebuild(force=True)
 Config.model_rebuild(force=True)
 Policy.model_rebuild(force=True)
@@ -81,7 +80,6 @@ PolicyRequest.model_rebuild(force=True)
 from device_discovery.policy.runner import PolicyRunner  # noqa: E402
 from device_discovery.client import Client, MAX_MESSAGE_SIZE_BYTES  # noqa: E402
 from device_discovery.entity_metadata import apply_run_id_to_entities  # noqa: E402
-from device_discovery.policy.models import Defaults  # noqa: E402
 from device_discovery.metrics import get_metric  # noqa: E402
 from netboxlabs.diode.sdk import create_message_chunks, estimate_message_size  # noqa: E402
 from orbweaver.collectors.registry import get_collector, list_collectors  # noqa: E402
