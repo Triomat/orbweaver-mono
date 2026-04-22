@@ -24,7 +24,6 @@ from netboxlabs.diode.sdk.ingester import (
     IPAddress,
     Platform,
     Prefix,
-    Rack,
 )
 
 from orbweaver.models.common import (
@@ -138,7 +137,6 @@ def translate_primary_ip_entities(device: NormalizedDevice, defaults: Defaults) 
         device_type=diode_device.device_type,
         role=diode_device.role,
         tenant=diode_device.tenant,
-        rack=diode_device.rack,
         primary_ip4=device.primary_ip4 or None,
         primary_ip6=device.primary_ip6 or None,
     ))]
@@ -186,11 +184,11 @@ def _translate_device(device: NormalizedDevice, defaults: Defaults) -> Device:
         from device_discovery.translate import translate_tenant
         tenant = translate_tenant(defaults.tenant)
 
-    # Rack: name + site + tenant so Diode matches the existing rack record.
-    # Tenant is part of the rack's lookup key in NetBox; omitting it causes
-    # Diode to create a duplicate rack without a tenant instead of reusing
-    # the existing tenanted one.
-    rack_obj = Rack(name=device.rack, site=site_name, tenant=tenant) if device.rack else None
+    # Rack: pass the name as a plain string so the Diode reconciler resolves
+    # it within the device's own site context. Passing a full Rack(name, site,
+    # tenant) object causes Diode to upsert the rack as a standalone entity,
+    # which always creates a new record instead of finding the existing one.
+    rack_name = device.rack or None
 
     return Device(
         name=device.name,
@@ -206,7 +204,7 @@ def _translate_device(device: NormalizedDevice, defaults: Defaults) -> Device:
         tags=tags,
         comments=device.comments or None,
         tenant=tenant,
-        rack=rack_obj,
+        rack=rack_name,
     )
 
 
