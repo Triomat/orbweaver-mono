@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -164,8 +165,11 @@ def _collect_device_data_via_collector(self, scope, sanitized_hostname, config, 
         )
 
     # Second ingest call: set primary_ip4/ip6 after the interface IP assignments
-    # are committed. Sending them in the same batch causes a race condition.
+    # are committed. A delay lets the Diode reconciler process pass 1 before
+    # pass 2 tries to designate a primary IP (NetBox rejects it if the IP isn't
+    # yet assigned to a device interface).
     if primary_ip_ents:
+        time.sleep(2)
         if run_id:
             apply_run_id_to_entities(primary_ip_ents, run_id)
         response = client.diode_client.ingest(
@@ -182,6 +186,8 @@ def _collect_device_data_via_collector(self, scope, sanitized_hostname, config, 
     if discovery_success:
         discovery_success.add(1, {"policy": self.name})
 
+    return entity_count
+
 
 _original_collect_device_data = PolicyRunner._collect_device_data
 
@@ -191,8 +197,7 @@ def _collect_device_data(self, scope, sanitized_hostname, config, run_id=None):
     Extended _collect_device_data: tries vendor collector first, falls back to upstream NAPALM path.
     """
     if self._select_collector(scope) is not None:
-        self._collect_device_data_via_collector(scope, sanitized_hostname, config, run_id)
-        return
+        return self._collect_device_data_via_collector(scope, sanitized_hostname, config, run_id)
     return _original_collect_device_data(self, scope, sanitized_hostname, config, run_id)
 
 

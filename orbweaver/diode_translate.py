@@ -136,6 +136,7 @@ def translate_primary_ip_entities(device: NormalizedDevice, defaults: Defaults) 
         site=diode_device.site,
         device_type=diode_device.device_type,
         role=diode_device.role,
+        tenant=diode_device.tenant,
         primary_ip4=device.primary_ip4 or None,
         primary_ip6=device.primary_ip6 or None,
     ))]
