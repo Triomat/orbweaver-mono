@@ -434,6 +434,25 @@ def _execute_ingest(session, defaults: Defaults, statuses: list, dry_run: bool =
         if response.errors:
             ingest_errors.extend(str(e) for e in response.errors)
 
+    # Pass 3: assign racks via pynetbox. Diode cannot match existing racks by
+    # site+name (see docs/upstream-issues.md), so rack is excluded from Diode
+    # entities and set here instead using the NetBox REST API directly.
+    if not dry_run:
+        from orbweaver.netbox_ops import assign_device_rack
+        for item in session.devices:
+            if item.status not in statuses:
+                continue
+            rack_name = item.data.get("rack", "")
+            if not rack_name:
+                continue
+            device_name = item.data.get("name", "")
+            site_name = defaults.site if defaults.site and defaults.site != "undefined" else ""
+            if not site_name:
+                site_obj = item.data.get("site") or {}
+                site_name = site_obj.get("name", "") if isinstance(site_obj, dict) else ""
+            if device_name and site_name:
+                assign_device_rack(device_name, site_name, rack_name)
+
     summary = IngestSummary()
     for entity in entities_to_ingest:
         if getattr(entity, "device", None) is not None:

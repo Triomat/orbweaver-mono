@@ -199,6 +199,19 @@ def _collect_device_data_via_collector(self, scope, sanitized_hostname, config, 
             )
         logger.info("Hostname %s: primary IPs set", sanitized_hostname)
 
+    # Pass 3: assign rack via pynetbox. Diode cannot match existing racks by
+    # site+name (see docs/upstream-issues.md), so rack is excluded from Diode
+    # entities and set here instead using the NetBox REST API directly.
+    if normalized_device.rack:
+        site_name = ""
+        if _defaults and _defaults.site and _defaults.site != "undefined":
+            site_name = _defaults.site
+        elif normalized_device.site:
+            site_name = normalized_device.site.name
+        if site_name:
+            from orbweaver.netbox_ops import assign_device_rack
+            assign_device_rack(normalized_device.name, site_name, normalized_device.rack)
+
     discovery_success = get_metric("discovery_success")
     if discovery_success:
         discovery_success.add(1, {"policy": self.name})

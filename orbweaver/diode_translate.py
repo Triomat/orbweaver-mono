@@ -184,12 +184,10 @@ def _translate_device(device: NormalizedDevice, defaults: Defaults) -> Device:
         from device_discovery.translate import translate_tenant
         tenant = translate_tenant(defaults.tenant)
 
-    # Rack: pass the name as a plain string so the Diode reconciler resolves
-    # it within the device's own site context. Passing a full Rack(name, site,
-    # tenant) object causes Diode to upsert the rack as a standalone entity,
-    # which always creates a new record instead of finding the existing one.
-    rack_name = device.rack or None
-
+    # Rack is intentionally NOT passed to Diode — see docs/upstream-issues.md.
+    # Diode matches racks by location+name (not site+name), so passing a rack
+    # here always creates a new stub. Rack assignment is done post-ingest via
+    # pynetbox in netbox_ops.assign_device_rack().
     return Device(
         name=device.name,
         device_type=DeviceType(
@@ -204,7 +202,6 @@ def _translate_device(device: NormalizedDevice, defaults: Defaults) -> Device:
         tags=tags,
         comments=device.comments or None,
         tenant=tenant,
-        rack=rack_name,
     )
 
 
