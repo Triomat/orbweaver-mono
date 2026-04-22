@@ -107,6 +107,16 @@ def _collect_single(scope: Napalm, config: Config) -> dict:
 
     logger.info("Collecting %s via %s collector", scope.hostname, collector.vendor_name)
     normalized_device = collector.discover_single(scope.hostname)
+
+    # Inject rack from policy config — rack is not discoverable from the device itself.
+    # Per-device scope.rack takes priority; defaults.rack is the fallback.
+    _defaults = config.defaults
+    normalized_device.rack = (
+        getattr(scope, "rack", None)
+        or getattr(_defaults, "rack", None)
+        or ""
+    )
+
     return _to_dict(normalized_device)
 
 
