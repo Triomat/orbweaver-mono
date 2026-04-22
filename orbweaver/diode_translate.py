@@ -186,8 +186,11 @@ def _translate_device(device: NormalizedDevice, defaults: Defaults) -> Device:
         from device_discovery.translate import translate_tenant
         tenant = translate_tenant(defaults.tenant)
 
-    # Rack: name-only reference; device appears as non-racked in NetBox
-    rack_obj = Rack(name=device.rack, site=site_name) if device.rack else None
+    # Rack: name + site + tenant so Diode matches the existing rack record.
+    # Tenant is part of the rack's lookup key in NetBox; omitting it causes
+    # Diode to create a duplicate rack without a tenant instead of reusing
+    # the existing tenanted one.
+    rack_obj = Rack(name=device.rack, site=site_name, tenant=tenant) if device.rack else None
 
     return Device(
         name=device.name,
