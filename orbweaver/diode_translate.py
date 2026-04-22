@@ -233,6 +233,7 @@ def _translate_interface(
         status=diode_device.status,
         tags=diode_device.tags,
         comments=diode_device.comments,
+        tenant=diode_device.tenant,
     )
 
     iface_kwargs = {
