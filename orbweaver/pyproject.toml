@@ -1,6 +1,6 @@
 [project]
 name = "orbweaver"
-version = "0.3.1"
+version = "0.3.3"
 description = "orbweaver — vendor collector framework and review workflow for NetBox Discovery"
 readme = "README.md"
 requires-python = ">=3.10"
