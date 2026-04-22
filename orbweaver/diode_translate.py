@@ -24,6 +24,7 @@ from netboxlabs.diode.sdk.ingester import (
     IPAddress,
     Platform,
     Prefix,
+    Rack,
 )
 
 from orbweaver.models.common import (
@@ -137,6 +138,7 @@ def translate_primary_ip_entities(device: NormalizedDevice, defaults: Defaults) 
         device_type=diode_device.device_type,
         role=diode_device.role,
         tenant=diode_device.tenant,
+        rack=diode_device.rack,
         primary_ip4=device.primary_ip4 or None,
         primary_ip6=device.primary_ip6 or None,
     ))]
@@ -184,6 +186,9 @@ def _translate_device(device: NormalizedDevice, defaults: Defaults) -> Device:
         from device_discovery.translate import translate_tenant
         tenant = translate_tenant(defaults.tenant)
 
+    # Rack: name-only reference; device appears as non-racked in NetBox
+    rack_obj = Rack(name=device.rack, site=site_name) if device.rack else None
+
     return Device(
         name=device.name,
         device_type=DeviceType(
@@ -198,6 +203,7 @@ def _translate_device(device: NormalizedDevice, defaults: Defaults) -> Device:
         tags=tags,
         comments=device.comments or None,
         tenant=tenant,
+        rack=rack_obj,
     )
 
 
@@ -234,6 +240,7 @@ def _translate_interface(
         tags=diode_device.tags,
         comments=diode_device.comments,
         tenant=diode_device.tenant,
+        rack=diode_device.rack,
     )
 
     iface_kwargs = {
