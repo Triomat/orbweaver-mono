@@ -34,6 +34,24 @@ Napalm.model_fields["collector"] = FieldInfo(
     ),
 )
 
+# ── 1c. Add rack field to Napalm (per-device rack override) ─────────────────
+Napalm.__annotations__["rack"] = str | None
+Napalm.model_fields["rack"] = FieldInfo(
+    default=None,
+    annotation=str | None,
+    description="Rack name to assign this device to in NetBox. Overrides defaults.rack.",
+)
+
+# ── 1d. Add rack field to Defaults (policy-level rack default) ───────────────
+from device_discovery.policy.models import Defaults  # noqa: E402
+Defaults.__annotations__["rack"] = str | None
+Defaults.model_fields["rack"] = FieldInfo(
+    default=None,
+    annotation=str | None,
+    description="Rack name to assign all devices in this policy to in NetBox.",
+)
+Defaults.model_rebuild(force=True)
+
 # ── 1b. Add auto_ingest flag to Config ───────────────────────────────────────
 Config.__annotations__["auto_ingest"] = bool
 Config.model_fields["auto_ingest"] = FieldInfo(
@@ -132,6 +150,7 @@ def _collect_device_data_via_collector(self, scope, sanitized_hostname, config, 
 
     normalized_device = collector.discover_single(sanitized_hostname)
     _defaults = config.defaults or Defaults()
+    normalized_device.rack = getattr(scope, "rack", None) or getattr(_defaults, "rack", None) or ""
     entities = translate_single_device(normalized_device, _defaults)
     primary_ip_ents = translate_primary_ip_entities(normalized_device, _defaults)
     metadata = {"policy_name": self.name, "hostname": sanitized_hostname}
