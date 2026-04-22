@@ -229,6 +229,9 @@ def _translate_interface(
     # Must NOT include primary_ip4/primary_ip6: NetBox rejects setting a primary
     # IP before that IP is assigned to an interface, causing the whole changeset
     # (including the interface itself) to fail.
+    # Must NOT include rack: Diode upserts the nested Rack object for every
+    # interface entity, creating one duplicate rack record per interface. Rack
+    # is set correctly on the main device entity from _translate_device() instead.
     device_ref = Device(
         name=diode_device.name,
         site=diode_device.site,
@@ -240,7 +243,6 @@ def _translate_interface(
         tags=diode_device.tags,
         comments=diode_device.comments,
         tenant=diode_device.tenant,
-        rack=diode_device.rack,
     )
 
     iface_kwargs = {
