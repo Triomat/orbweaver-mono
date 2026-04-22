@@ -21,23 +21,24 @@ export interface DeviceEntry {
   collector: string
   driver: string
   timeout: number
+  rack: string
 }
 
 export interface PolicyForm {
   name: string
-  defaults: { site: string; role: string; tags: string; tenant: string }
+  defaults: { site: string; role: string; tags: string; tenant: string; rack: string }
   autoIngest: boolean
   devices: DeviceEntry[]
 }
 
 function defaultDevice(): DeviceEntry {
-  return { hostname: '', username: '', password: '', collector: 'cisco_ios', driver: '', timeout: 60 }
+  return { hostname: '', username: '', password: '', collector: 'cisco_ios', driver: '', timeout: 60, rack: '' }
 }
 
 function defaultPolicy(): PolicyForm {
   return {
     name: 'my-discovery',
-    defaults: { site: '', role: '', tags: '', tenant: '' },
+    defaults: { site: '', role: '', tags: '', tenant: '', rack: '' },
     autoIngest: false,
     devices: [defaultDevice()],
   }
@@ -58,6 +59,7 @@ function _buildPolicyObject(policy: PolicyForm): Record<string, unknown> {
     } else if (d.driver) {
       entry.driver = d.driver
     }
+    if (d.rack) entry.rack = d.rack
     return entry
   })
 
@@ -65,6 +67,7 @@ function _buildPolicyObject(policy: PolicyForm): Record<string, unknown> {
   if (policy.defaults.site)   defaults.site   = policy.defaults.site
   if (policy.defaults.role)   defaults.role   = policy.defaults.role
   if (policy.defaults.tenant) defaults.tenant = policy.defaults.tenant
+  if (policy.defaults.rack)   defaults.rack   = policy.defaults.rack
   if (policy.defaults.tags) {
     defaults.tags = policy.defaults.tags.split(',').map((t) => t.trim()).filter(Boolean)
   }
@@ -134,6 +137,7 @@ function yamlToForm(yamlStr: string): PolicyForm | null {
       collector: String(d.collector ?? ''),
       driver: String(d.driver ?? ''),
       timeout: typeof d.timeout === 'number' ? d.timeout : 60,
+      rack: String(d.rack ?? ''),
     }))
 
     return {
@@ -143,6 +147,7 @@ function yamlToForm(yamlStr: string): PolicyForm | null {
         role: String(defaults.role ?? ''),
         tags,
         tenant: String(defaults.tenant ?? ''),
+        rack: String(defaults.rack ?? ''),
       },
       autoIngest: config?.auto_ingest === true,
       devices: devices.length > 0 ? devices : [defaultDevice()],
