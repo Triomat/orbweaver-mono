@@ -319,6 +319,7 @@ class NormalizedDevice:
     platform: NormalizedPlatform | None = None  # structured platform with version tree
     primary_ip4: str = ""  # CIDR notation
     primary_ip6: str = ""
+    rack: str = ""
     interfaces: list[NormalizedInterface] = field(default_factory=list)
     vlans: list[NormalizedVLAN] = field(default_factory=list)
     lldp_neighbors: list[NormalizedLLDPNeighbor] = field(default_factory=list)
