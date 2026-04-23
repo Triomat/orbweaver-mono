@@ -1,4 +1,5 @@
 # backend/tests/test_seed_endpoint.py
+import json
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
@@ -8,34 +9,14 @@ from device_discovery.server import app
 
 client = TestClient(app)
 
-SEED_YAML = """
-sites:
-  - name: theBASEMENT
-    slug: thebasement
-manufacturers:
-  - name: Cisco
-    slug: cisco
-device_types:
-  - manufacturer: Cisco
-    model: Meraki MX67
-    slug: cisco-meraki-mx67
-    u_height: 1
-device_roles:
-  - name: Firewall
-    slug: firewall
-    color: f44336
-racks:
-  - name: theRACK
-    site: theBASEMENT
-    u_height: 42
-devices:
-  - name: fw-01
-    device_type: Meraki MX67
-    manufacturer: Cisco
-    role: Firewall
-    site: theBASEMENT
-    status: active
-"""
+SEED_JSON = json.dumps({
+    "sites": [{"name": "theBASEMENT", "slug": "thebasement"}],
+    "manufacturers": [{"name": "Cisco", "slug": "cisco"}],
+    "device_types": [{"manufacturer": "Cisco", "model": "Meraki MX67", "slug": "cisco-meraki-mx67", "u_height": 1}],
+    "device_roles": [{"name": "Firewall", "slug": "firewall", "color": "f44336"}],
+    "racks": [{"name": "theRACK", "site": "theBASEMENT", "u_height": 42}],
+    "devices": [{"name": "fw-01", "device_type": "Meraki MX67", "manufacturer": "Cisco", "role": "Firewall", "site": "theBASEMENT", "status": "active"}],
+})
 
 
 @patch("orbweaver.seed.loader._pynetbox_client")
@@ -53,8 +34,8 @@ def test_seed_endpoint_returns_200(mock_client):
 
     response = client.post(
         "/api/v1/seed",
-        content=SEED_YAML,
-        headers={"Content-Type": "application/x-yaml"},
+        content=SEED_JSON,
+        headers={"Content-Type": "application/json"},
     )
     assert response.status_code == 200
     body = response.json()
@@ -65,11 +46,11 @@ def test_seed_endpoint_returns_200(mock_client):
     assert body["created"]["devices"] == 1
 
 
-def test_seed_endpoint_invalid_yaml_returns_400():
+def test_seed_endpoint_invalid_json_returns_400():
     response = client.post(
         "/api/v1/seed",
-        content="{ not: [valid yaml",
-        headers={"Content-Type": "application/x-yaml"},
+        content="{ not valid json",
+        headers={"Content-Type": "application/json"},
     )
     assert response.status_code == 400
 
@@ -77,7 +58,7 @@ def test_seed_endpoint_invalid_yaml_returns_400():
 def test_seed_endpoint_invalid_schema_returns_422():
     response = client.post(
         "/api/v1/seed",
-        content="devices:\n  - name: 123\n    missing_required: true\n",
-        headers={"Content-Type": "application/x-yaml"},
+        content=json.dumps({"devices": [{"missing_required": True}]}),
+        headers={"Content-Type": "application/json"},
     )
     assert response.status_code == 422

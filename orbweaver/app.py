@@ -606,14 +606,15 @@ def compare_review(review_id: str, body: CompareRequest):
 
 @app.post("/api/v1/seed")
 async def seed_infrastructure(request: Request):
-    """Seed NetBox with infrastructure objects from a YAML body."""
+    """Seed NetBox with infrastructure objects from a JSON body."""
+    import json as _json
     body = await request.body()
     try:
-        raw = yaml.safe_load(body)
+        raw = _json.loads(body)
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Invalid YAML: {exc}") from exc
+        raise HTTPException(status_code=400, detail=f"Invalid JSON: {exc}") from exc
     if not isinstance(raw, dict):
-        raise HTTPException(status_code=400, detail="YAML body must be a mapping")
+        raise HTTPException(status_code=400, detail="JSON body must be an object")
     try:
         seed_data = SeedData.model_validate(raw)
     except Exception as exc:
