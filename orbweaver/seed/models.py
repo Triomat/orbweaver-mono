@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class SeedTenant(BaseModel):
@@ -38,6 +38,11 @@ class SeedDeviceRole(BaseModel):
     name: str
     slug: str
     color: str = "9e9e9e"
+
+    @field_validator("color", mode="before")
+    @classmethod
+    def coerce_color_to_str(cls, v: object) -> str:
+        return str(v)
 
 
 class SeedPlatform(BaseModel):
