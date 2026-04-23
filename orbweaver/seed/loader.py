@@ -192,6 +192,13 @@ def _create_device(nb, dev, site_map, rack_map, role_map, dt_map, platform_map,
             lookup = {"name": dev.name}
             if site_obj:
                 lookup["site_id"] = site_obj.id
+            # Scope by tenant so same-named devices in different tenants are distinct
+            if dev.tenant:
+                tenant_results = list(nb.tenancy.tenants.filter(name=dev.tenant))
+                if tenant_results:
+                    lookup["tenant_id"] = tenant_results[0].id
+            elif tenant_obj:
+                lookup["tenant_id"] = tenant_obj.id
             existing = nb.dcim.devices.get(**lookup)
         if existing:
             result.skipped["devices"] += 1
