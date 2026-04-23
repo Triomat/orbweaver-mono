@@ -188,7 +188,11 @@ def _create_device(nb, dev, site_map, rack_map, role_map, dt_map, platform_map,
         if dev.serial:
             existing = nb.dcim.devices.get(serial=dev.serial)
         if not existing:
-            existing = nb.dcim.devices.get(name=dev.name)
+            site_obj = site_map.get(dev.site)
+            lookup = {"name": dev.name}
+            if site_obj:
+                lookup["site_id"] = site_obj.id
+            existing = nb.dcim.devices.get(**lookup)
         if existing:
             result.skipped["devices"] += 1
             return existing
