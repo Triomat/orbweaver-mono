@@ -299,11 +299,12 @@ def _assign_device_bay(nb, child_obj, parent_name: str, bay_name: str,
 
 
 def _assign_primary_ip(nb, device_obj, address: str, result: SeedResult) -> None:
+    # Creates the IP object in NetBox but does NOT set it as primary_ip4.
+    # NetBox rejects primary_ip4 until the IP is assigned to a device interface,
+    # which only happens after orbweaver discovery runs.
     try:
         existing_ip = nb.ipam.ip_addresses.get(address=address)
         if not existing_ip:
-            existing_ip = nb.ipam.ip_addresses.create(address=address)
-        device_obj.primary_ip4 = existing_ip.id
-        device_obj.save()
+            nb.ipam.ip_addresses.create(address=address)
     except Exception as exc:
-        result.errors.append(f"primary_ip4 '{address}' for device: {exc}")
+        result.errors.append(f"ip_address '{address}': {exc}")
