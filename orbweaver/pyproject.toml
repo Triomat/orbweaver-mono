@@ -30,6 +30,7 @@ packages = [
     "orbweaver.collectors",
     "orbweaver.models",
     "orbweaver.review",
+    "orbweaver.seed",
 ]
 
 [build-system]
