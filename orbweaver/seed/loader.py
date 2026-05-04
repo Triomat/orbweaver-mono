@@ -148,12 +148,14 @@ def run_seed(data) -> SeedResult:
     rack_map: dict[str, object] = {}
     for rack in data.racks:
         site_obj = site_map.get(rack.site)
+        lookup_kwargs = {"name": rack.name}
         create_kwargs = {"name": rack.name, "u_height": rack.u_height, "status": rack.status}
         if site_obj:
+            lookup_kwargs["site_id"] = site_obj.id
             create_kwargs["site"] = site_obj.id
         obj = _get_or_create(
             nb.dcim.racks,
-            {"name": rack.name},
+            lookup_kwargs,
             create_kwargs,
             result, "racks",
         )
@@ -223,14 +225,9 @@ def _create_device(nb, dev, site_map, rack_map, role_map, dt_map, platform_map,
             create_kwargs["role"] = role_obj.id
 
         if dev.rack:
-            rack_results = list(nb.dcim.racks.filter(name=dev.rack))
-            if rack_results:
-                site_name = dev.site
-                rack = next(
-                    (r for r in rack_results if r.site and r.site.name == site_name),
-                    rack_results[0],
-                )
-                create_kwargs["rack"] = rack.id
+            rack_obj = rack_map.get(dev.rack)
+            if rack_obj:
+                create_kwargs["rack"] = rack_obj.id
 
         if dev.position is not None:
             create_kwargs["position"] = dev.position

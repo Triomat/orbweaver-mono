@@ -68,3 +68,10 @@ def test_invalid_missing_required_field():
     raw["devices"][0].pop("name")
     with pytest.raises(ValidationError):
         SeedData.model_validate(raw)
+
+
+def test_invalid_unknown_device_reference():
+  raw = pyyaml.safe_load(MINIMAL_YAML)
+  raw["devices"][0]["device_type"] = "Meraki MR45"
+  with pytest.raises(ValidationError):
+    SeedData.model_validate(raw)

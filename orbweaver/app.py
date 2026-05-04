@@ -35,8 +35,8 @@ from pydantic import ValidationError
 
 from device_discovery.client import Client
 from device_discovery.policy.models import Defaults, PolicyRequest
-import device_discovery.server as _dd_server
 from device_discovery.server import app, manager, parse_yaml_body, start_time
+from device_discovery.version import version_semver
 
 _ACCEPTED_CONTENT_TYPES = {
     "application/x-yaml", "text/yaml", "application/yaml",
@@ -72,14 +72,14 @@ async def _parse_yaml_body_lenient(request: Request) -> PolicyRequest:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 # ── Orbweaver imports ─────────────────────────────────────────────────────────
-from orbweaver.seed.loader import run_seed
-from orbweaver.seed.models import SeedData
 from orbweaver.collectors.registry import get_collector, list_collectors
 from orbweaver.diode_translate import translate_primary_ip_entities, translate_single_device
 from orbweaver.review.compare import CompareConfig, compare_review_with_netbox
 from orbweaver.review.models import ItemStatus, ReviewItem, ReviewStatus
 from orbweaver.review.rebuild import device_from_dict
 from orbweaver.review.store import ReviewStore
+from orbweaver.seed.loader import run_seed
+from orbweaver.seed.models import SeedData
 
 # ── Review store ──────────────────────────────────────────────────────────────
 _review_dir = os.environ.get("ORBWEAVER_REVIEW_DIR", "reviews")
@@ -157,7 +157,7 @@ def read_status():
         pass
 
     return EnhancedStatusResponse(
-        version=_dd_server.version_semver(),
+        version=version_semver(),
         up_time_seconds=round(time_diff.total_seconds()),
         policies=policy_statuses,
         diode_target=_diode_target,
@@ -515,6 +515,32 @@ def ingest_review(review_id: str, body: IngestRequest):
     return result
 
 
+# ── Seed infrastructure ───────────────────────────────────────────────────────
+
+@app.post("/api/v1/seed")
+async def seed_infrastructure(request: Request):
+    """Seed NetBox infrastructure objects from a JSON or YAML payload."""
+    ct = request.headers.get("content-type", "").split(";")[0].strip()
+    if ct not in _ACCEPTED_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"invalid Content-Type '{ct}'. Accepted: {', '.join(sorted(_ACCEPTED_CONTENT_TYPES))}",
+        )
+
+    body = await request.body()
+    try:
+        raw = yaml.safe_load(body)
+    except yaml.YAMLError as exc:
+        raise HTTPException(status_code=400, detail="Invalid YAML/JSON format") from exc
+
+    try:
+        seed_data = SeedData.model_validate(raw)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors()) from exc
+
+    return run_seed(seed_data).as_dict()
+
+
 # ── Compare ───────────────────────────────────────────────────────────────────
 
 class CompareRequest(BaseModel):
@@ -600,24 +626,3 @@ def compare_review(review_id: str, body: CompareRequest):
         error_count=error_count,
         diffs=diffs,
     ).model_dump()
-
-
-# ── Seed infrastructure ───────────────────────────────────────────────────────
-
-@app.post("/api/v1/seed")
-async def seed_infrastructure(request: Request):
-    """Seed NetBox with infrastructure objects from a JSON body."""
-    import json as _json
-    body = await request.body()
-    try:
-        raw = _json.loads(body)
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Invalid JSON: {exc}") from exc
-    if not isinstance(raw, dict):
-        raise HTTPException(status_code=400, detail="JSON body must be an object")
-    try:
-        seed_data = SeedData.model_validate(raw)
-    except Exception as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    result = run_seed(seed_data)
-    return result.as_dict()
