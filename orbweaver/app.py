@@ -519,9 +519,13 @@ def ingest_review(review_id: str, body: IngestRequest):
 
 @app.post("/api/v1/seed")
 async def seed_infrastructure(request: Request):
-    """Seed NetBox infrastructure objects from a JSON or YAML payload."""
+    """Seed NetBox infrastructure objects from a JSON or YAML payload.
+
+    Accepts application/json, application/yaml, text/yaml, or no Content-Type
+    (bare POST from tools such as n8n).
+    """
     ct = request.headers.get("content-type", "").split(";")[0].strip()
-    if ct not in _ACCEPTED_CONTENT_TYPES:
+    if ct and ct not in _ACCEPTED_CONTENT_TYPES:
         raise HTTPException(
             status_code=400,
             detail=f"invalid Content-Type '{ct}'. Accepted: {', '.join(sorted(_ACCEPTED_CONTENT_TYPES))}",
@@ -533,12 +537,19 @@ async def seed_infrastructure(request: Request):
     except yaml.YAMLError as exc:
         raise HTTPException(status_code=400, detail="Invalid YAML/JSON format") from exc
 
+    if not isinstance(raw, dict):
+        raise HTTPException(status_code=400, detail="Request body must be a JSON/YAML object")
+
     try:
         seed_data = SeedData.model_validate(raw)
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=exc.errors()) from exc
 
-    return run_seed(seed_data).as_dict()
+    try:
+        return run_seed(seed_data).as_dict()
+    except Exception as exc:
+        logger.exception("seed_infrastructure: run_seed raised an unexpected error")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 # ── Compare ───────────────────────────────────────────────────────────────────
