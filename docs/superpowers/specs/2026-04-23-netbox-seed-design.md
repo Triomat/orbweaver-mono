@@ -131,7 +131,7 @@ pynetbox is initialized from `NETBOX_HOST`, `NETBOX_PORT`, and `NETBOX_TOKEN` en
 
 **Two-pass device creation:** Devices with `parent_device` are created after all devices without it. Then the bay assignment is made via `nb.dcim.device_bays.get(device_id=parent.id, name=parent_bay)` followed by `bay.save()` with `installed_device` set.
 
-**Primary IP creation:** If `primary_ip4` is set on a device, the loader creates the IP address via `nb.ipam.ip_addresses.create(address=..., assigned_object_type="dcim.interface", ...)` — but only as a bare IP (no interface assignment, since the interface doesn't exist yet at seed time). The device's `primary_ip4` is then set via a separate `device.save()` call.
+**Primary IP creation:** If `primary_ip4` is set on a device, the loader creates or reuses a management interface named `mgmt0`, creates or reuses the IP address, binds that IP to `mgmt0`, and then sets the device's `primary_ip4` via `device.save()`. Repeated seed runs should reuse the existing device, `mgmt0`, and IP where possible.
 
 **Tags:** Created on-the-fly via the same `get_or_create` helper (`nb.extras.tags`, lookup by `name`, create with `name` + auto-slug).
 
@@ -172,6 +172,6 @@ No new env vars needed.
 
 ## What is NOT in scope
 
-- Seeding interfaces, IP ranges, prefixes, or cables (these come from orbweaver discovery)
+- Seeding arbitrary interfaces, IP ranges, prefixes, or cables (beyond the auto-managed `mgmt0` interface used for `primary_ip4`)
 - Deleting or resetting NetBox before seeding (out of scope — manual wipe if needed)
 - VLAN or prefix seeding (covered by orbweaver's discover→ingest flow)

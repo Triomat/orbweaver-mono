@@ -9,6 +9,8 @@ logger = logging.getLogger(__name__)
 _HOST_VAR = "NETBOX_HOST"
 _PORT_VAR = "NETBOX_PORT"
 _TOKEN_VAR = "NETBOX_TOKEN"
+_MGMT_INTERFACE_NAME = "mgmt0"
+_MGMT_INTERFACE_TYPE = "virtual"
 
 
 def _pynetbox_client():
@@ -296,12 +298,70 @@ def _assign_device_bay(nb, child_obj, parent_name: str, bay_name: str,
 
 
 def _assign_primary_ip(nb, device_obj, address: str, result: SeedResult) -> None:
-    # Creates the IP object in NetBox but does NOT set it as primary_ip4.
-    # NetBox rejects primary_ip4 until the IP is assigned to a device interface,
-    # which only happens after orbweaver discovery runs.
     try:
-        existing_ip = nb.ipam.ip_addresses.get(address=address)
-        if not existing_ip:
-            nb.ipam.ip_addresses.create(address=address)
+        interface_obj = _get_or_create_management_interface(nb, device_obj, result)
+        if interface_obj is None:
+            return
+
+        ip_obj = _get_or_create_ip_for_interface(nb, interface_obj, address, result)
+        if ip_obj is None:
+            return
+
+        current_primary = getattr(device_obj, "primary_ip4", None)
+        current_primary_id = getattr(current_primary, "id", current_primary)
+        if current_primary_id != ip_obj.id:
+            device_obj.primary_ip4 = ip_obj.id
+            device_obj.save()
     except Exception as exc:
         result.errors.append(f"ip_address '{address}': {exc}")
+
+
+def _get_or_create_management_interface(nb, device_obj, result: SeedResult):
+    try:
+        interfaces = list(
+            nb.dcim.interfaces.filter(device_id=device_obj.id, name=_MGMT_INTERFACE_NAME)
+        )
+        if interfaces:
+            return interfaces[0]
+
+        return nb.dcim.interfaces.create(
+            device=device_obj.id,
+            name=_MGMT_INTERFACE_NAME,
+            type=_MGMT_INTERFACE_TYPE,
+        )
+    except Exception as exc:
+        result.errors.append(
+            f"device '{getattr(device_obj, 'name', device_obj.id)}' interface '{_MGMT_INTERFACE_NAME}': {exc}"
+        )
+        return None
+
+
+def _get_or_create_ip_for_interface(nb, interface_obj, address: str, result: SeedResult):
+    try:
+        ip_obj = nb.ipam.ip_addresses.get(address=address)
+        if not ip_obj:
+            return nb.ipam.ip_addresses.create(
+                address=address,
+                assigned_object_type="dcim.interface",
+                assigned_object_id=interface_obj.id,
+            )
+
+        current_type = getattr(ip_obj, "assigned_object_type", None)
+        current_id = getattr(ip_obj, "assigned_object_id", None)
+
+        if current_type in (None, "") and current_id in (None, ""):
+            ip_obj.assigned_object_type = "dcim.interface"
+            ip_obj.assigned_object_id = interface_obj.id
+            ip_obj.save()
+            return ip_obj
+
+        if current_type == "dcim.interface" and current_id == interface_obj.id:
+            return ip_obj
+
+        result.errors.append(
+            f"ip_address '{address}' is already assigned to a different object"
+        )
+        return None
+    except Exception as exc:
+        result.errors.append(f"ip_address '{address}': {exc}")
+        return None

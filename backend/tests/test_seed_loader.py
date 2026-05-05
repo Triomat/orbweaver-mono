@@ -30,6 +30,7 @@ def _make_nb():
         nb.dcim.device_roles,
         nb.dcim.platforms,
         nb.dcim.devices,
+        nb.dcim.interfaces,
         nb.extras.tags,
         nb.ipam.ip_addresses,
     ]:
@@ -85,11 +86,23 @@ def test_creates_device_with_rack(mock_client):
 
     nb.dcim.sites.get.return_value = site_obj
     nb.dcim.racks.filter.return_value = [rack_obj]
+    nb.dcim.racks.create.return_value = rack_obj
     nb.dcim.device_roles.get.return_value = role_obj
     nb.dcim.manufacturers.get.return_value = mfr_obj
     nb.dcim.device_types.get.return_value = dt_obj
 
     data = SeedData(
+        sites=[SeedSite(name="theBASEMENT", slug="thebasement")],
+        racks=[SeedRack(name="theRACK", site="theBASEMENT")],
+        manufacturers=[SeedManufacturer(name="Cisco", slug="cisco")],
+        device_types=[
+            SeedDeviceType(
+                manufacturer="Cisco",
+                model="Meraki MX67",
+                slug="cisco-meraki-mx67",
+            )
+        ],
+        device_roles=[SeedDeviceRole(name="Firewall", slug="firewall")],
         devices=[
             SeedDevice(
                 name="fw-01",
@@ -113,6 +126,108 @@ def test_creates_device_with_rack(mock_client):
     assert call_kwargs["position"] == 10
     assert call_kwargs["serial"] == "ABC123"
     assert result.created["devices"] == 1
+
+
+@patch("orbweaver.seed.loader._pynetbox_client")
+def test_creates_primary_ip_on_mgmt_interface(mock_client):
+    nb = _make_nb()
+    mock_client.return_value = nb
+
+    device_obj = MagicMock(id=101, name="fw-01")
+    ip_obj = MagicMock(id=201, assigned_object_type=None, assigned_object_id=None)
+    iface_obj = MagicMock(id=301, name="mgmt0")
+
+    nb.dcim.devices.create.return_value = device_obj
+    nb.dcim.interfaces.filter.return_value = []
+    nb.dcim.interfaces.create.return_value = iface_obj
+    nb.ipam.ip_addresses.get.return_value = None
+    nb.ipam.ip_addresses.create.return_value = ip_obj
+
+    data = SeedData(
+        sites=[SeedSite(name="theBASEMENT", slug="thebasement")],
+        manufacturers=[SeedManufacturer(name="Cisco", slug="cisco")],
+        device_types=[
+            SeedDeviceType(
+                manufacturer="Cisco",
+                model="Meraki MX67",
+                slug="cisco-meraki-mx67",
+            )
+        ],
+        device_roles=[SeedDeviceRole(name="Firewall", slug="firewall")],
+        devices=[
+            SeedDevice(
+                name="fw-01",
+                device_type="Meraki MX67",
+                manufacturer="Cisco",
+                role="Firewall",
+                site="theBASEMENT",
+                primary_ip4="192.0.2.10/24",
+            )
+        ],
+    )
+
+    result = run_seed(data)
+
+    nb.dcim.interfaces.create.assert_called_once_with(
+        device=device_obj.id,
+        name="mgmt0",
+        type="virtual",
+    )
+    nb.ipam.ip_addresses.create.assert_called_once_with(
+        address="192.0.2.10/24",
+        assigned_object_type="dcim.interface",
+        assigned_object_id=iface_obj.id,
+    )
+    assert device_obj.primary_ip4 == ip_obj.id
+    device_obj.save.assert_called_once()
+    assert result.errors == []
+
+
+@patch("orbweaver.seed.loader._pynetbox_client")
+def test_reuses_existing_mgmt_interface_for_primary_ip(mock_client):
+    nb = _make_nb()
+    mock_client.return_value = nb
+
+    device_obj = MagicMock(id=101, name="fw-01")
+    ip_obj = MagicMock(id=201, assigned_object_type=None, assigned_object_id=None)
+    iface_obj = MagicMock(id=301, name="mgmt0")
+
+    nb.dcim.devices.create.return_value = device_obj
+    nb.dcim.interfaces.filter.return_value = [iface_obj]
+    nb.ipam.ip_addresses.get.return_value = ip_obj
+
+    data = SeedData(
+        sites=[SeedSite(name="theBASEMENT", slug="thebasement")],
+        manufacturers=[SeedManufacturer(name="Cisco", slug="cisco")],
+        device_types=[
+            SeedDeviceType(
+                manufacturer="Cisco",
+                model="Meraki MX67",
+                slug="cisco-meraki-mx67",
+            )
+        ],
+        device_roles=[SeedDeviceRole(name="Firewall", slug="firewall")],
+        devices=[
+            SeedDevice(
+                name="fw-01",
+                device_type="Meraki MX67",
+                manufacturer="Cisco",
+                role="Firewall",
+                site="theBASEMENT",
+                primary_ip4="192.0.2.10/24",
+            )
+        ],
+    )
+
+    result = run_seed(data)
+
+    nb.dcim.interfaces.create.assert_not_called()
+    ip_obj.save.assert_called_once()
+    assert ip_obj.assigned_object_type == "dcim.interface"
+    assert ip_obj.assigned_object_id == iface_obj.id
+    assert device_obj.primary_ip4 == ip_obj.id
+    device_obj.save.assert_called_once()
+    assert result.errors == []
 
 
 @patch("orbweaver.seed.loader._pynetbox_client")
