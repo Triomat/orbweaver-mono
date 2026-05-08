@@ -25,26 +25,6 @@ The orb-agent container loads configuration (local YAML or Git), manages secrets
 ```
 orbweaver-mono/
 ├── backend/                   ← upstream device-discovery (100% unmodified)
-│   ├── device_discovery/      ✓ every file identical to upstream
-│   │   ├── policy/
-│   │   │   ├── runner.py      ✓ upstream, untouched
-│   │   │   ├── models.py      ✓ upstream, untouched
-│   │   │   ├── manager.py     ✓ upstream, untouched
-│   │   │   ├── run.py         ✓ upstream, untouched
-│   │   │   └── portscan.py    ✓ upstream, untouched
-│   │   ├── server.py          ✓ upstream, untouched
-│   │   ├── client.py          ✓ upstream, untouched
-│   │   ├── main.py            ✓ upstream, untouched
-│   │   ├── entity_metadata.py ✓ upstream, untouched
-│   │   ├── translate.py       ✓ upstream, untouched
-│   │   ├── interface.py       ✓ upstream, untouched
-│   │   ├── defaults.py        ✓ upstream, untouched
-│   │   ├── metrics.py         ✓ upstream, untouched
-│   │   └── version.py         ✓ upstream, untouched
-│   ├── tests/                 ✓ upstream tests, untouched
-│   ├── scripts/
-│   ├── seed_review.py
-│   └── pyproject.toml         ✓ upstream, untouched
 │
 ├── orbweaver/                 ✦ orbweaver-only extension package
 │   ├── patches.py             ✦ runtime patches (Napalm model + PolicyRunner)
@@ -137,24 +117,6 @@ git show upstream/develop:device-discovery/pyproject.toml > backend/pyproject.to
 
 ## Architecture: the orbweaver layer
 
-### orbweaver/patches.py — Napalm model extension
-
-Adds `collector: str | None` field to the upstream `Napalm` Pydantic model at runtime using Pydantic v2's `model_rebuild()`. This lets YAML policies use `collector: cisco_ios` without touching `policy/models.py`.
-
-### orbweaver/patches.py — PolicyRunner extension
-
-Three methods are monkey-patched onto `PolicyRunner`:
-- `_select_collector(scope)` — picks vendor collector by `scope.collector` or `scope.driver`
-- `_collect_device_data_via_collector(scope, hostname, config, run_id)` — runs COM collector path
-- `_collect_device_data(scope, hostname, config, run_id)` — wraps upstream: tries collector first, falls back to NAPALM
-
-### orbweaver/app.py — FastAPI extension
-
-Imports the upstream `app` object and extends it in-place:
-- CORS middleware (origins from `ORBWEAVER_CORS_ORIGINS` env var)
-- Overrides `/api/v1/status` with enhanced response (adds `reviews`, `dry_run`, `diode_target`)
-- New routes: collectors, discover, reviews CRUD, ingest, compare
-
 ### Data flow
 
 ```
@@ -233,71 +195,19 @@ just install-backend   # installs backend/ (device-discovery) + orbweaver/
 just install-ui        # installs frontend node deps
 ```
 
-### Service management
+All dev commands are in `justfile` — read it for full syntax. Key areas:
 
-| Command | What it does |
-|---|---|
-| `just start` | Start backend (dry-run) + UI |
-| `just start grpc://host:8080/diode` | Start backend with live Diode target + UI |
-| `just stop` | Stop both services |
-| `just restart` | Stop + start both |
-| `just ps` | Status of all services |
-| `just backend-restart` | Restart backend only |
-| `just backend-restart grpc://...` | Restart backend with Diode target |
-| `just ui-restart` | Restart UI only |
-| `just backend-logs` | Tail backend logs |
-| `just ui-logs` | Tail UI logs |
+- **Services**: `just start [diode-target]`, `just stop`, `just restart`, `just ps`, `just backend-restart [diode-target]`, `just ui-restart`, `just backend-logs`, `just ui-logs`
+- **Testing/lint**: `just test`, `just test-cov`, `just test-legacy` (upstream tests only), `just lint`, `just check-syntax`, `just check-imports`, `just seed` (seed fake review session for UI)
+- **Docker**: `just docker-up` (backend :8072, UI :3000), `just docker-down`, `just docker-logs`
 
-### Key paths
-
-| Path | What it is |
-|---|---|
-| `backend/device_discovery/` | Upstream Python package (unmodified) |
-| `orbweaver/` | orbweaver extension package |
-| `frontend/` | Nuxt 4 UI |
-| `docker/` | Docker Compose integration stack |
-| `scripts/` | Bash service wrappers |
-| `.venv/` | Python virtualenv (monorepo root) |
-| `/tmp/orbweaver-backend.pid` | Backend PID file |
-| `/tmp/orbweaver-ui.pid` | UI PID file |
-| `/tmp/orbweaver-backend.log` | Backend log |
-| `/tmp/orbweaver-ui.log` | UI log |
-| `/tmp/orbweaver-reviews/` | Review session data |
-
-### Testing & CI
-
-| Command | What it does |
-|---|---|
-| `just test` | Run all backend tests |
-| `just test-cov` | Tests with coverage report |
-| `just test-legacy` | Run only upstream tests (verify nothing broke) |
-| `just lint` | Run ruff linter |
-| `just check-syntax` | Syntax-check key orbweaver Python files |
-| `just check-imports` | Verify orbweaver module imports work |
-| `just seed` | Seed a fake review session for UI testing |
-
-### Docker (integration stack)
-
-| Command | What it does |
-|---|---|
-| `just docker-up` | Build + start orbweaver stack (backend port 8072, UI port 3000) |
-| `just docker-down` | Stop all Docker containers |
-| `just docker-logs` | Tail backend container logs |
+Runtime files: `/tmp/orbweaver-{backend,ui}.{pid,log}`, `/tmp/orbweaver-reviews/`
 
 ---
 
 ## Frontend (orbweaver-ui)
 
 Stack: Nuxt 4, shadcn-nuxt, Tailwind CSS, VueUse
-
-| Path | Purpose |
-|---|---|
-| `frontend/app/pages/config.vue` | Trigger discover-and-hold |
-| `frontend/app/pages/reviews.vue` | List all review sessions |
-| `frontend/app/pages/review/[id].vue` | Review, accept/reject, ingest |
-| `frontend/app/composables/useApi.ts` | Base HTTP client |
-| `frontend/app/composables/useReview.ts` | Review session state |
-| `frontend/app/composables/useConfig.ts` | Discovery config state |
 
 API base URL: `NUXT_PUBLIC_API_BASE` env var (default: `http://localhost:8073`)
 

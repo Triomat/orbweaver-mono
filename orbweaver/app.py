@@ -523,6 +523,18 @@ async def seed_infrastructure(request: Request):
 
     Accepts application/json, application/yaml, text/yaml, or no Content-Type
     (bare POST from tools such as n8n).
+
+    Supported top-level keys include:
+    - sites, racks, manufacturers, device_types, device_roles, platforms, devices
+    - vlans: list of VLAN objects (`vid`, `name`, optional `site`)
+
+    Device entries can include `interfaces`, where each interface supports:
+    - name, description, mac_address, type
+    - mode (`access`, `tagged`, `tagged-all`)
+    - access_vlan or tagged_vlans (mutually exclusive)
+
+    Response counters include `created`, `skipped`, and `updated` with per-entity
+    counts for `interfaces` and `vlans`.
     """
     ct = request.headers.get("content-type", "").split(";")[0].strip()
     if ct and ct not in _ACCEPTED_CONTENT_TYPES:
