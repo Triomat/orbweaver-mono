@@ -1,23 +1,25 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 1.0.0 → 1.1.0
-Bump rationale: New principle added (VI. Test-Driven Development) — MINOR bump per versioning policy.
+Version change: 1.2.0 → 1.3.0
+Bump rationale: Development workflow materially expanded with mandatory feature-branch
+and pull-request-to-develop policy — MINOR bump per versioning policy.
 
 Modified principles: None
+Modified principles: None
 
-Added principles:
-  VI. Test-Driven Development (TDD)
+Added principles: None
 
 Added sections: None
 Removed sections: None
 
 Templates reviewed:
-  ✅ .specify/templates/plan-template.md — Constitution Check gate is generic; no update required.
-     TDD gate will be reflected at plan-generation time by speckit.plan.
-  ✅ .specify/templates/spec-template.md — No direct constitution references; no update required.
-  ✅ .specify/templates/tasks-template.md — Test task guidance updated to reflect TDD mandate:
-     test tasks are now required (not optional) per Principle VI.
+  ✅ .specify/templates/plan-template.md — Updated Constitution Check guidance to enforce
+    new-feature-branch and PR-to-develop delivery path.
+  ✅ .specify/templates/spec-template.md — Reviewed; no update required.
+  ✅ .specify/templates/tasks-template.md — Reviewed; no update required.
+  ⚠ pending .specify/templates/commands/*.md — Directory does not exist in this repo,
+    so no command templates were available to validate.
 
 Deferred TODOs: None — all placeholders resolved.
 -->
@@ -109,6 +111,10 @@ a strong test suite is essential to detect subtle breakage introduced by upstrea
 - All dev commands MUST be invoked via `justfile` from the monorepo root. Shell scripts in
   `scripts/` are service wrappers only — they MUST NOT contain business logic.
 - Feature work follows the speckit workflow: branch → specify → clarify → plan → tasks → implement.
+- All development work MUST start on a newly created feature branch. Direct development on
+  `develop` or `main` is prohibited.
+- Completed feature branches MUST be merged back into `develop` through a pull request.
+  Direct pushes to `develop` are prohibited.
 - Tests run via `just test` (orbweaver suite) and `just test-legacy` (upstream suite). Both MUST
   pass before any commit. New functionality MUST include tests per Principle VI (TDD).
 - `just lint` and `just check-imports` MUST pass before any commit.
@@ -119,6 +125,8 @@ a strong test suite is essential to detect subtle breakage introduced by upstrea
 This constitution supersedes all other coding conventions for orbweaver. All feature implementation
 plans MUST include a Constitution Check gate (verifying compliance with Principles I–VI) before
 any Phase 1 design work begins and again before implementation.
+Compliance review MUST verify that each change set originates from a feature branch and that
+integration into `develop` occurs via an approved pull request.
 
 Amendments MUST:
 1. Update the Sync Impact Report HTML comment at the top of this file.
@@ -129,4 +137,4 @@ Amendments MUST:
 3. Set `LAST_AMENDED_DATE` to the amendment date (ISO 8601).
 4. Preserve the original `RATIFICATION_DATE`.
 
-**Version**: 1.1.0 | **Ratified**: 2026-05-07 | **Last Amended**: 2026-05-07
+**Version**: 1.3.0 | **Ratified**: 2026-05-07 | **Last Amended**: 2026-05-08

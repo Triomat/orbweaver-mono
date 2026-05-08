@@ -33,6 +33,12 @@
 
 [Gates determined based on constitution file]
 
+- Confirm design preserves upstream immutability and extension-over-modification rules.
+- Confirm each prioritized user story maps to one vertical use-case slice with clear boundaries.
+- Confirm each slice includes test-first coverage and independent validation criteria.
+- Confirm implementation occurs on a new feature branch and delivery is via pull request to
+  `develop` (no direct pushes to `develop`/`main`).
+
 ## Project Structure
 
 ### Documentation (this feature)
