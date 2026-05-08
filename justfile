@@ -205,7 +205,18 @@ reviews:
 
 # Run backend tests
 test:
-    cd {{DD_DIR}} && {{VENV}}/pytest tests/ -v
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ -x ".venv/bin/python" ]]; then
+        py=".venv/bin/python"
+    elif [[ -x ".venv/Scripts/python.exe" ]]; then
+        py=".venv/Scripts/python.exe"
+    else
+        echo "Project Python not found in .venv" >&2
+        exit 1
+    fi
+    PYTHONPATH=".:backend" "$py" -m pytest backend/tests -v
+    PYTHONPATH=".:backend" "$py" -m pytest orbweaver/tests/test_cisco_ios_interface_types.py -v
 
 # Run tests with coverage report
 test-cov:
@@ -214,13 +225,33 @@ test-cov:
 
 # Run only the legacy (upstream) tests — verifies nothing broke
 test-legacy:
-    cd {{DD_DIR}} && {{VENV}}/pytest tests/ -v --tb=short \
-        --ignore=tests/test_collectors.py \
-        --ignore=tests/test_diode_translate.py
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ -x ".venv/bin/python" ]]; then
+        py=".venv/bin/python"
+    elif [[ -x ".venv/Scripts/python.exe" ]]; then
+        py=".venv/Scripts/python.exe"
+    else
+        echo "Project Python not found in .venv" >&2
+        exit 1
+    fi
+    PYTHONPATH=".:backend" "$py" -m pytest backend/tests -v --tb=short \
+        --ignore=backend/tests/test_collectors.py \
+        --ignore=backend/tests/test_diode_translate.py
 
 # Run a specific test file
 test-file file:
-    cd {{DD_DIR}} && {{VENV}}/pytest {{file}} -v --tb=short
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ -x ".venv/bin/python" ]]; then
+        py=".venv/bin/python"
+    elif [[ -x ".venv/Scripts/python.exe" ]]; then
+        py=".venv/Scripts/python.exe"
+    else
+        echo "Project Python not found in .venv" >&2
+        exit 1
+    fi
+    PYTHONPATH=".:backend" "$py" -m pytest {{file}} -v --tb=short
 
 # Run ruff linter
 lint:
@@ -228,11 +259,31 @@ lint:
 
 # Verify all orbweaver module imports are valid (no Diode SDK required)
 check-imports:
-    {{VENV}}/python {{DD_DIR}}/scripts/check_imports.py
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ -x ".venv/bin/python" ]]; then
+        py=".venv/bin/python"
+    elif [[ -x ".venv/Scripts/python.exe" ]]; then
+        py=".venv/Scripts/python.exe"
+    else
+        echo "Project Python not found in .venv" >&2
+        exit 1
+    fi
+    PYTHONPATH=".:backend" "$py" {{DD_DIR}}/scripts/check_imports.py
 
 # Syntax-check all Python files
 check-syntax:
-    {{VENV}}/python -m py_compile \
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ -x ".venv/bin/python" ]]; then
+        py=".venv/bin/python"
+    elif [[ -x ".venv/Scripts/python.exe" ]]; then
+        py=".venv/Scripts/python.exe"
+    else
+        echo "Project Python not found in .venv" >&2
+        exit 1
+    fi
+    PYTHONPATH=".:backend" "$py" -m py_compile \
         orbweaver/models/common.py \
         orbweaver/models/version_parser.py \
         orbweaver/collectors/base.py \
@@ -245,7 +296,7 @@ check-syntax:
         orbweaver/patches.py \
         orbweaver/app.py \
         orbweaver/main.py
-    @echo "All syntax OK"
+    echo "All syntax OK"
 
 # ── Git workflows ────────────────────────────────────────────────────────────
 

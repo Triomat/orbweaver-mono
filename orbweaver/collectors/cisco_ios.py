@@ -39,6 +39,7 @@ from orbweaver.collectors.napalm_helpers import (
 )
 from orbweaver.models.common import (
     DeviceStatus,
+    InterfaceType,
     InterfaceMode,
     NormalizedDevice,
     NormalizedDeviceRole,
@@ -191,11 +192,41 @@ class CiscoCollector(BaseCollector):
                 f"storing for post-processing: {self._current_host}"
             )
 
+        self._apply_interface_type_corrections(iface_map)
+
         interfaces = list(iface_map.values())
         total_ips = sum(len(iface.ip_addresses) for iface in interfaces)
         self.logger.info(f"  -> {total_ips} IP addresses across {len(interfaces)} interfaces")
 
         return interfaces
+
+    def _apply_interface_type_corrections(
+        self, iface_map: dict[str, NormalizedInterface]
+    ) -> None:
+        for iface in iface_map.values():
+            corrected_type = self._authoritative_interface_type(iface.name)
+            if corrected_type is None or iface.type == corrected_type:
+                continue
+
+            original_type = iface.type
+            iface.type = corrected_type
+            self.logger.info(
+                "Corrected interface type on %s: %s from %s to %s (speed=%s)",
+                self._current_host,
+                iface.name,
+                original_type.value,
+                corrected_type.value,
+                iface.speed,
+            )
+
+    @staticmethod
+    def _authoritative_interface_type(name: str) -> InterfaceType | None:
+        iface_name = name.lower()
+        if iface_name.startswith("gigabitethernet") or iface_name.startswith("gi"):
+            return InterfaceType.ONETHOUSANDBASE_T
+        if iface_name.startswith("fastethernet") or iface_name.startswith("fa"):
+            return InterfaceType.ONEHUNDREDBASE_TX
+        return None
 
     # ------------------------------------------------------------------
     # VLANs
