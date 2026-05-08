@@ -33,10 +33,6 @@
 
 [Gates determined based on constitution file]
 
-- Confirm design preserves upstream immutability and extension-over-modification rules.
-- Confirm each prioritized user story maps to one vertical use-case slice with clear boundaries.
-- Confirm each slice includes test-first coverage and independent validation criteria.
-
 ## Project Structure
 
 ### Documentation (this feature)
@@ -75,22 +71,16 @@ tests/
 # [REMOVE IF UNUSED] Option 2: Web application (when "frontend" + "backend" detected)
 backend/
 ├── src/
-│   └── use_cases/
-│       ├── <slice-a>/
-│       │   ├── api.py
-│       │   ├── service.py
-│       │   ├── schema.py
-│       │   └── mapper.py
-│       └── <slice-b>/
-│           └── ...
+│   ├── models/
+│   ├── services/
+│   └── api/
 └── tests/
-  └── use_cases/
 
 frontend/
 ├── src/
-│   └── features/
-│       ├── <slice-a>/
-│       └── <slice-b>/
+│   ├── components/
+│   ├── pages/
+│   └── services/
 └── tests/
 
 # [REMOVE IF UNUSED] Option 3: Mobile + API (when "iOS/Android" detected)
@@ -102,7 +92,7 @@ ios/ or android/
 ```
 
 **Structure Decision**: [Document the selected structure and reference the real
-directories captured above. Explain how each use case is represented as a vertical slice.]
+directories captured above]
 
 ## Complexity Tracking
 

@@ -1,28 +1,23 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 1.1.0 → 1.2.0
-Bump rationale: New principle added (VII. Vertical Slice Architecture by Use Case) and
-constitution-aligned template updates — MINOR bump per versioning policy.
+Version change: 1.0.0 → 1.1.0
+Bump rationale: New principle added (VI. Test-Driven Development) — MINOR bump per versioning policy.
 
-Modified principles:
-  VI. Test-Driven Development (scope clarified for vertical slices)
+Modified principles: None
 
 Added principles:
-  VII. Vertical Slice Architecture by Use Case
+  VI. Test-Driven Development (TDD)
 
 Added sections: None
 Removed sections: None
 
 Templates reviewed:
-  ✅ .specify/templates/plan-template.md — Updated to require a vertical-slice structure decision
-    and constitution gate checks for use-case aligned slices.
-  ✅ .specify/templates/spec-template.md — Updated user stories to declare a vertical slice boundary
-    so implementation maps directly to use-case slices.
-  ✅ .specify/templates/tasks-template.md — Updated to require slice-aligned tasking and mandatory
-    test-first execution per story slice.
-  ⚠ pending .specify/templates/commands/*.md — Directory does not exist in this repo,
-    so no command templates were available to validate.
+  ✅ .specify/templates/plan-template.md — Constitution Check gate is generic; no update required.
+     TDD gate will be reflected at plan-generation time by speckit.plan.
+  ✅ .specify/templates/spec-template.md — No direct constitution references; no update required.
+  ✅ .specify/templates/tasks-template.md — Test task guidance updated to reflect TDD mandate:
+     test tasks are now required (not optional) per Principle VI.
 
 Deferred TODOs: None — all placeholders resolved.
 -->
@@ -90,25 +85,11 @@ a corresponding test file in `orbweaver/tests/`. A feature implementation MUST N
 complete until `just test` passes with no failures. The upstream test suite (`just test-legacy`)
 MUST continue to pass at all times — orbweaver changes MUST NOT regress upstream behavior.
 Tests MUST cover the public contract of each unit (inputs, outputs, raised exceptions).
-Integration tests requiring live devices MAY be skipped in CI but MUST be documented. For
-vertical use-case slices, tests MUST validate each slice independently before cross-slice
-integration is accepted.
+Integration tests requiring live devices MAY be skipped in CI but MUST be documented.
 
 **Rationale**: TDD drives better-designed interfaces, surfaces regressions early, and provides
 a living specification of expected behavior. Given that orbweaver monkey-patches upstream code,
 a strong test suite is essential to detect subtle breakage introduced by upstream version bumps.
-
-### VII. Vertical Slice Architecture by Use Case
-
-Feature design and implementation MUST follow vertical slices aligned to user use cases. A
-single use case MUST encapsulate its API contract, orchestration/service logic, validation,
-translation/mapping, and tests as one cohesive slice. Cross-cutting shared utilities MAY exist,
-but they MUST remain thin and MUST NOT become dumping grounds for use-case behavior. New work
-MUST be planned and executed slice-by-slice, enabling independent delivery and verification.
-
-**Rationale**: Use-case-aligned vertical slices reduce coupling, preserve domain intent, and
-improve change safety by localizing behavior. This structure also maps directly to prioritized
-user stories and supports incremental delivery.
 
 ## Technology Constraints
 
@@ -130,15 +111,13 @@ user stories and supports incremental delivery.
 - Feature work follows the speckit workflow: branch → specify → clarify → plan → tasks → implement.
 - Tests run via `just test` (orbweaver suite) and `just test-legacy` (upstream suite). Both MUST
   pass before any commit. New functionality MUST include tests per Principle VI (TDD).
-- New features MUST be organized by vertical use-case slices per Principle VII. Plans, specs,
-  and tasks MUST trace each slice from user story to implementation and tests.
 - `just lint` and `just check-imports` MUST pass before any commit.
 - The Docker Compose stack (`just docker-up`) is the canonical integration reference environment.
 
 ## Governance
 
 This constitution supersedes all other coding conventions for orbweaver. All feature implementation
-plans MUST include a Constitution Check gate (verifying compliance with Principles I–VII) before
+plans MUST include a Constitution Check gate (verifying compliance with Principles I–VI) before
 any Phase 1 design work begins and again before implementation.
 
 Amendments MUST:
@@ -150,4 +129,4 @@ Amendments MUST:
 3. Set `LAST_AMENDED_DATE` to the amendment date (ISO 8601).
 4. Preserve the original `RATIFICATION_DATE`.
 
-**Version**: 1.2.0 | **Ratified**: 2026-05-07 | **Last Amended**: 2026-05-08
+**Version**: 1.1.0 | **Ratified**: 2026-05-07 | **Last Amended**: 2026-05-07
