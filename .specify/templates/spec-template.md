@@ -28,6 +28,9 @@
 
 **Independent Test**: [Describe how this can be tested independently - e.g., "Can be fully tested by [specific action] and delivers [specific value]"]
 
+**Vertical Slice Boundary**: [Define the concrete use-case slice boundary this story owns,
+including API/UI entry points, orchestration logic, and persistence/integration touchpoints]
+
 **Acceptance Scenarios**:
 
 1. **Given** [initial state], **When** [action], **Then** [expected outcome]
@@ -43,6 +46,8 @@
 
 **Independent Test**: [Describe how this can be tested independently]
 
+**Vertical Slice Boundary**: [Define the concrete use-case slice boundary this story owns]
+
 **Acceptance Scenarios**:
 
 1. **Given** [initial state], **When** [action], **Then** [expected outcome]
@@ -56,6 +61,8 @@
 **Why this priority**: [Explain the value and why it has this priority level]
 
 **Independent Test**: [Describe how this can be tested independently]
+
+**Vertical Slice Boundary**: [Define the concrete use-case slice boundary this story owns]
 
 **Acceptance Scenarios**:
 
