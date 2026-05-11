@@ -1,0 +1,61 @@
+name: Commit Lint
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  commitlint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Resolve commit range
+        env:
+          RAW_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          RAW_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          FALLBACK_BASE=""
+          if git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
+            FALLBACK_BASE="HEAD~1"
+          else
+            FALLBACK_BASE="$(git rev-list --max-parents=0 HEAD | tail -n 1)"
+          fi
+
+          if [ -z "$RAW_BASE_SHA" ] || [ "$RAW_BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            BASE_SHA="$FALLBACK_BASE"
+          elif git rev-parse --verify "$RAW_BASE_SHA" >/dev/null 2>&1; then
+            BASE_SHA="$RAW_BASE_SHA"
+          else
+            BASE_SHA="$FALLBACK_BASE"
+          fi
+
+          if [ -z "$RAW_HEAD_SHA" ]; then
+            HEAD_SHA="HEAD"
+          elif git rev-parse --verify "$RAW_HEAD_SHA" >/dev/null 2>&1; then
+            HEAD_SHA="$RAW_HEAD_SHA"
+          else
+            HEAD_SHA="HEAD"
+          fi
+
+          echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
+          echo "HEAD_SHA=$HEAD_SHA" >> "$GITHUB_ENV"
+
+      - name: Validate commit messages
+        run: npm run commitlint
