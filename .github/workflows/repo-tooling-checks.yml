@@ -1,0 +1,55 @@
+name: Repo Tooling Checks
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+    paths:
+      - ".github/workflows/**"
+      - "package.json"
+      - "release.config.js"
+      - "commitlint.config.cjs"
+  push:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/**"
+      - "package.json"
+      - "release.config.js"
+      - "commitlint.config.cjs"
+
+permissions:
+  contents: read
+
+jobs:
+  actionlint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Lint GitHub workflow files
+        uses: rhysd/actionlint@v1
+
+  release-config:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install --no-audit --no-fund
+          fi
+
+      - name: Validate release and commitlint config loading
+        run: node -e "require('./release.config.js'); require('./commitlint.config.cjs'); console.log('config-load-ok')"
