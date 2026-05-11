@@ -168,3 +168,23 @@ export interface DiscoverJobResponse {
   status: ReviewStatus
   detail: string
 }
+
+// ── Seed ──────────────────────────────────────────────────────────────────
+
+export interface SeedCounts {
+  tenants: number
+  sites: number
+  racks: number
+  manufacturers: number
+  device_types: number
+  device_roles: number
+  platforms: number
+  devices: number
+  tags: number
+}
+
+export interface SeedResult {
+  created: SeedCounts
+  skipped: SeedCounts
+  errors: string[]
+}

@@ -78,6 +78,8 @@ from orbweaver.review.compare import CompareConfig, compare_review_with_netbox
 from orbweaver.review.models import ItemStatus, ReviewItem, ReviewStatus
 from orbweaver.review.rebuild import device_from_dict
 from orbweaver.review.store import ReviewStore
+from orbweaver.seed.loader import run_seed
+from orbweaver.seed.models import SeedData
 
 # ── Review store ──────────────────────────────────────────────────────────────
 _review_dir = os.environ.get("ORBWEAVER_REVIEW_DIR", "reviews")
@@ -511,6 +513,55 @@ def ingest_review(review_id: str, body: IngestRequest):
         review_store.save(session)
 
     return result
+
+
+# ── Seed infrastructure ───────────────────────────────────────────────────────
+
+@app.post("/api/v1/seed")
+async def seed_infrastructure(request: Request):
+    """Seed NetBox infrastructure objects from a JSON or YAML payload.
+
+    Accepts application/json, application/yaml, text/yaml, or no Content-Type
+    (bare POST from tools such as n8n).
+
+    Supported top-level keys include:
+    - sites, racks, manufacturers, device_types, device_roles, platforms, devices
+    - vlans: list of VLAN objects (`vid`, `name`, optional `site`)
+
+    Device entries can include `interfaces`, where each interface supports:
+    - name, description, mac_address, type
+    - mode (`access`, `tagged`, `tagged-all`)
+    - access_vlan or tagged_vlans (mutually exclusive)
+
+    Response counters include `created`, `skipped`, and `updated` with per-entity
+    counts for `interfaces` and `vlans`.
+    """
+    ct = request.headers.get("content-type", "").split(";")[0].strip()
+    if ct and ct not in _ACCEPTED_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"invalid Content-Type '{ct}'. Accepted: {', '.join(sorted(_ACCEPTED_CONTENT_TYPES))}",
+        )
+
+    body = await request.body()
+    try:
+        raw = yaml.safe_load(body)
+    except yaml.YAMLError as exc:
+        raise HTTPException(status_code=400, detail="Invalid YAML/JSON format") from exc
+
+    if not isinstance(raw, dict):
+        raise HTTPException(status_code=400, detail="Request body must be a JSON/YAML object")
+
+    try:
+        seed_data = SeedData.model_validate(raw)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors()) from exc
+
+    try:
+        return run_seed(seed_data).as_dict()
+    except Exception as exc:
+        logger.exception("seed_infrastructure: run_seed raised an unexpected error")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 # ── Compare ───────────────────────────────────────────────────────────────────

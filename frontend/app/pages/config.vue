@@ -11,6 +11,27 @@ const showPasswords = ref<boolean[]>([])
 function togglePassword(index: number) {
   showPasswords.value[index] = !showPasswords.value[index]
 }
+
+const DEFAULT_SEED_YAML = ``
+
+const seedYaml = ref(DEFAULT_SEED_YAML)
+const seedExpanded = ref(false)
+const seeding = ref(false)
+const seedResult = ref<import('~/types/api').SeedResult | null>(null)
+const seedError = ref<string | null>(null)
+
+async function runSeed() {
+  seeding.value = true
+  seedResult.value = null
+  seedError.value = null
+  try {
+    seedResult.value = await api.seedInfrastructure(seedYaml.value)
+  } catch (err: unknown) {
+    seedError.value = err instanceof Error ? err.message : String(err)
+  } finally {
+    seeding.value = false
+  }
+}
 </script>
 
 <template>
@@ -331,6 +352,62 @@ function togglePassword(index: number) {
         <p class="mt-3 text-xs text-muted-foreground border-t pt-3">
           <span class="font-medium">Auto-ingest</span> skips steps 3–4: all devices are accepted and pushed to NetBox immediately. The session is still recorded for audit.
         </p>
+      </div>
+    </div>
+
+    <!-- Seed Infrastructure panel (full width, below the two columns) -->
+    <div class="col-span-1 lg:col-span-2 rounded-lg border">
+      <button
+        class="flex w-full items-center justify-between px-4 py-3 text-sm font-medium hover:bg-muted/30 transition-colors"
+        @click="seedExpanded = !seedExpanded"
+      >
+        <span>Seed Infrastructure</span>
+        <span class="text-muted-foreground text-xs">{{ seedExpanded ? '▲ collapse' : '▼ expand' }}</span>
+      </button>
+
+      <div v-if="seedExpanded" class="border-t px-4 py-4 space-y-3">
+        <p class="text-xs text-muted-foreground">
+          Paste your infrastructure YAML below and click Seed to create sites, racks, manufacturers,
+          device types, roles, and devices in NetBox via the REST API.
+          Safe to run multiple times — existing objects are skipped.
+        </p>
+
+        <textarea
+          v-model="seedYaml"
+          rows="20"
+          class="w-full rounded-md border bg-background px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-ring"
+          spellcheck="false"
+        />
+
+        <div v-if="seedError" class="rounded-md bg-destructive/10 border border-destructive/30 p-3 text-xs text-destructive font-mono whitespace-pre-wrap">
+          {{ seedError }}
+        </div>
+
+        <div v-if="seedResult" class="rounded-md bg-muted/30 border p-3 text-xs font-mono space-y-1">
+          <p class="font-medium text-foreground">Seed complete</p>
+          <p class="text-muted-foreground">
+            Created — sites: {{ seedResult.created.sites }}, racks: {{ seedResult.created.racks }},
+            manufacturers: {{ seedResult.created.manufacturers }},
+            device types: {{ seedResult.created.device_types }},
+            roles: {{ seedResult.created.device_roles }},
+            devices: {{ seedResult.created.devices }}
+          </p>
+          <p class="text-muted-foreground">
+            Skipped — sites: {{ seedResult.skipped.sites }}, devices: {{ seedResult.skipped.devices }}
+          </p>
+          <div v-if="seedResult.errors.length > 0" class="text-destructive mt-1">
+            <p class="font-medium">Errors:</p>
+            <p v-for="(e, i) in seedResult.errors" :key="i">{{ e }}</p>
+          </div>
+        </div>
+
+        <button
+          :disabled="seeding"
+          class="w-full rounded-md bg-primary py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+          @click="runSeed"
+        >
+          {{ seeding ? 'Seeding…' : 'Seed Infrastructure' }}
+        </button>
       </div>
     </div>
   </div>

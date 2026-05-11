@@ -14,6 +14,7 @@ import type {
   ReviewItem,
   ReviewSession,
   ReviewSummary,
+  SeedResult,
 } from '~/types/api'
 
 export function useApi() {
@@ -93,6 +94,16 @@ export function useApi() {
     })
   }
 
+  // ── Seed ──────────────────────────────────────────────────────────────────
+
+  function seedInfrastructure(yamlBody: string): Promise<SeedResult> {
+    return $fetch(url('/api/v1/seed'), {
+      method: 'POST',
+      body: yamlBody,
+      headers: { 'Content-Type': 'application/x-yaml' },
+    })
+  }
+
   return {
     getStatus,
     listCollectors,
@@ -104,5 +115,6 @@ export function useApi() {
     patchDeviceItem,
     bulkUpdate,
     ingest,
+    seedInfrastructure,
   }
 }

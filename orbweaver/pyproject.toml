@@ -1,6 +1,6 @@
 [project]
 name = "orbweaver"
-version = "0.3.3"
+version = "0.4.2.dev0"
 description = "orbweaver — vendor collector framework and review workflow for NetBox Discovery"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -30,6 +30,7 @@ packages = [
     "orbweaver.collectors",
     "orbweaver.models",
     "orbweaver.review",
+    "orbweaver.seed",
 ]
 
 [build-system]

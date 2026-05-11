@@ -1,11 +1,20 @@
 build/
+dist/
 __pycache__/
+*.pyc
 .vscode/
+.idea/
 .pytest_cache/
 .ruff_cache/
 *.egg-info/
 .coverage/
 .coverage
+node_modules/
+*.log
+.env*
+Thumbs.db
+*.tmp
+*.swp
 
 .cursor/
 .cursor.md
