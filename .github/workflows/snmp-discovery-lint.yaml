@@ -7,6 +7,9 @@ on:
       - "snmp-discovery/**"
       - "!snmp-discovery/docker/**"
   pull_request:
+    branches:
+      - develop
+      - main
     paths:
       - "snmp-discovery/**"
       - "!snmp-discovery/docker/**"

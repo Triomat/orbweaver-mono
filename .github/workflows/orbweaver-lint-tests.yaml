@@ -1,0 +1,44 @@
+name: Orbweaver - lint and tests
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+    paths:
+      - "orbweaver/**"
+      - "backend/**"
+  push:
+    branches:
+      - develop
+    paths:
+      - "orbweaver/**"
+      - "backend/**"
+
+permissions:
+  contents: read
+
+jobs:
+  lint-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e "backend[dev,test]"
+          pip install -e "orbweaver[dev,test]"
+
+      - name: Lint orbweaver
+        run: ruff check orbweaver/
+
+      - name: Run orbweaver tests
+        run: PYTHONPATH=".:backend" pytest orbweaver/tests -v
