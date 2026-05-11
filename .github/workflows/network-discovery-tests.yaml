@@ -7,6 +7,9 @@ on:
       - "network-discovery/**"
       - "!network-discovery/docker/**"
   pull_request:
+    branches:
+      - develop
+      - main
     paths:
       - "network-discovery/**"
       - "!network-discovery/docker/**"
