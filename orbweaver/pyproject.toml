@@ -27,6 +27,7 @@ orbweaver = "orbweaver.main:main"
 package-dir = {"" = ".."}
 packages = [
     "orbweaver",
+    "orbweaver.cables",
     "orbweaver.collectors",
     "orbweaver.models",
     "orbweaver.review",

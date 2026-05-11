@@ -78,6 +78,42 @@ export function useReview(reviewId: Ref<string>) {
     }
   }
 
+  async function setCableStatus(index: number, status: ItemStatus) {
+    if (!session.value) return
+    const old = session.value.cables[index].status
+    session.value.cables[index].status = status
+    try {
+      await api.patchCableItem(reviewId.value, index, { status })
+    } catch (e: unknown) {
+      session.value.cables[index].status = old
+      error.value = (e as Error).message ?? 'Failed to update cable item'
+    }
+  }
+
+  async function approveCable(index: number) {
+    await setCableStatus(index, 'accepted')
+  }
+
+  async function rejectCable(index: number) {
+    await setCableStatus(index, 'rejected')
+  }
+
+  async function acceptAllCables() {
+    if (!session.value) return
+    await Promise.all(session.value.cables.map((item) => setCableStatus(item.index, 'accepted')))
+  }
+
+  async function rejectAllCables() {
+    if (!session.value) return
+    await Promise.all(session.value.cables.map((item) => setCableStatus(item.index, 'rejected')))
+  }
+
+  function filterCablesByConfidence(confidence: string) {
+    if (!session.value) return []
+    if (confidence === 'all') return session.value.cables
+    return session.value.cables.filter(c => c.data?.confidence === confidence)
+  }
+
   async function acceptAll() {
     if (!session.value) return
     const indices = session.value.devices.map((_, i) => i)
@@ -104,9 +140,13 @@ export function useReview(reviewId: Ref<string>) {
     try {
       const result = await api.ingest(reviewId.value, opts)
       ingestResult.value = result
-      if (!opts.dry_run) {
-        await fetchReview()
+      if (!opts.dry_run && session.value?.cables.length) {
+        const cableSummary = await api.ingestCables(reviewId.value)
+        if (session.value) {
+          session.value.cable_summary = cableSummary
+        }
       }
+      if (!opts.dry_run) await fetchReview()
     } catch (e: unknown) {
       error.value = (e as Error).message ?? 'Ingest failed'
     } finally {
@@ -126,6 +166,16 @@ export function useReview(reviewId: Ref<string>) {
     () => session.value?.devices.filter(d => d.status === 'pending').length ?? 0,
   )
 
+  const acceptedCableCount = computed(
+    () => session.value?.cables.filter(c => c.status === 'accepted').length ?? 0,
+  )
+  const rejectedCableCount = computed(
+    () => session.value?.cables.filter(c => c.status === 'rejected').length ?? 0,
+  )
+  const pendingCableCount = computed(
+    () => session.value?.cables.filter(c => c.status === 'pending').length ?? 0,
+  )
+
   return {
     session,
     loading,
@@ -135,13 +185,22 @@ export function useReview(reviewId: Ref<string>) {
     startPolling,
     stopPolling,
     setDeviceStatus,
+    setCableStatus,
+    approveCable,
+    rejectCable,
     acceptAll,
     rejectAll,
+    acceptAllCables,
+    rejectAllCables,
+    filterCablesByConfidence,
     runIngest,
     ingestLoading,
     ingestResult,
     acceptedCount,
     rejectedCount,
     pendingCount,
+    acceptedCableCount,
+    rejectedCableCount,
+    pendingCableCount,
   }
 }

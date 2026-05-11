@@ -15,8 +15,12 @@ from enum import Enum
 from typing import Any
 
 from orbweaver.collectors.registry import get_collector, list_collectors
+from orbweaver.cables.resolve import resolve_cables
+from orbweaver.netbox_ops import _pynetbox_client
+from orbweaver.models.common import DiscoveryResult
 from device_discovery.policy.models import Config, Napalm, Policy
 from orbweaver.review.models import ItemStatus, ReviewItem, ReviewSession, ReviewStatus
+from orbweaver.review.rebuild import device_from_dict
 from orbweaver.review.store import ReviewStore
 
 logger = logging.getLogger(__name__)
@@ -155,6 +159,22 @@ def run_discovery_for_review(
             msg = f"{hostname}: {exc}"
             logger.error("Discovery failed for %s: %s", hostname, exc)
             errors.append(msg)
+
+    try:
+        devices = [device_from_dict(item.data) for item in session.devices]
+        discovered = DiscoveryResult(devices=devices)
+        candidates, summary = resolve_cables(
+            discovery_result=discovered,
+            netbox_client=_pynetbox_client(),
+            normalization_rules={"vendor": ""},
+        )
+        session.cables = [
+            ReviewItem(index=idx, status=ItemStatus.PENDING, data=_to_dict(candidate))
+            for idx, candidate in enumerate(candidates)
+        ]
+        session.cable_summary = _to_dict(summary)
+    except Exception as exc:
+        logger.warning("Cable review candidate generation failed: %s", exc)
 
     if errors and not session.devices:
         session.status = ReviewStatus.FAILED

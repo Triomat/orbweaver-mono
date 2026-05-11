@@ -6,6 +6,7 @@
 
 import type {
   BackendStatus,
+  CableIngestResponse,
   CollectorInfo,
   DiscoverJobResponse,
   IngestRequest,
@@ -76,6 +77,17 @@ export function useApi() {
     })
   }
 
+  function patchCableItem(
+    reviewId: string,
+    index: number,
+    body: { status?: ItemStatus; data?: Record<string, unknown> },
+  ) {
+    return $fetch(url(`/api/v1/reviews/${reviewId}/items/cables/${index}`), {
+      method: 'PATCH',
+      body,
+    })
+  }
+
   function bulkUpdate(
     reviewId: string,
     action: ItemStatus,
@@ -91,6 +103,12 @@ export function useApi() {
     return $fetch(url(`/api/v1/reviews/${reviewId}/ingest`), {
       method: 'POST',
       body: opts,
+    })
+  }
+
+  function ingestCables(reviewId: string): Promise<CableIngestResponse> {
+    return $fetch(url(`/api/v1/reviews/${reviewId}/ingest-cables`), {
+      method: 'POST',
     })
   }
 
@@ -113,8 +131,10 @@ export function useApi() {
     getReview,
     deleteReview,
     patchDeviceItem,
+    patchCableItem,
     bulkUpdate,
     ingest,
+    ingestCables,
     seedInfrastructure,
   }
 }

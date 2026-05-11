@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+import os
 import time
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,21 @@ Defaults.model_fields["rack"] = FieldInfo(
     description="Rack name to assign all devices in this policy to in NetBox.",
 )
 
+# ── 1e. Add cables_enabled flags ─────────────────────────────────────────────
+Napalm.__annotations__["cables_enabled"] = bool | None
+Napalm.model_fields["cables_enabled"] = FieldInfo(
+    default=None,
+    annotation=bool | None,
+    description="Enable/disable cable ingestion for this scope entry.",
+)
+
+Defaults.__annotations__["cables_enabled"] = bool | None
+Defaults.model_fields["cables_enabled"] = FieldInfo(
+    default=None,
+    annotation=bool | None,
+    description="Enable/disable cable ingestion for this policy defaults.",
+)
+
 # ── 1b. Add auto_ingest flag to Config ───────────────────────────────────────
 Config.__annotations__["auto_ingest"] = bool
 Config.model_fields["auto_ingest"] = FieldInfo(
@@ -82,8 +98,12 @@ from device_discovery.client import Client, MAX_MESSAGE_SIZE_BYTES  # noqa: E402
 from device_discovery.entity_metadata import apply_run_id_to_entities  # noqa: E402
 from device_discovery.metrics import get_metric  # noqa: E402
 from netboxlabs.diode.sdk import create_message_chunks, estimate_message_size  # noqa: E402
+from orbweaver.cables.ingest import ingest_cables_direct  # noqa: E402
+from orbweaver.cables.models import CableResolutionSummary  # noqa: E402
+from orbweaver.cables.resolve import resolve_cables  # noqa: E402
 from orbweaver.collectors.registry import get_collector, list_collectors  # noqa: E402
 from orbweaver.diode_translate import translate_primary_ip_entities, translate_single_device  # noqa: E402
+from orbweaver.netbox_ops import _pynetbox_client  # noqa: E402
 
 
 def _select_collector(self, scope):
@@ -112,6 +132,39 @@ def _select_collector(self, scope):
             pass
 
     return None
+
+
+def _is_cables_enabled(scope, config) -> bool:
+    env_value = os.environ.get("ORBWEAVER_CABLES_ENABLED", "true").strip().lower()
+    enabled = env_value not in {"0", "false", "no", "off"}
+
+    defaults = config.defaults if config and config.defaults else None
+    defaults_enabled = getattr(defaults, "cables_enabled", None)
+    scope_enabled = getattr(scope, "cables_enabled", None)
+    if defaults_enabled is not None:
+        enabled = bool(defaults_enabled)
+    if scope_enabled is not None:
+        enabled = bool(scope_enabled)
+    return enabled
+
+
+def _normalization_rules(scope) -> dict:
+    collector_name = (getattr(scope, "collector", "") or "").lower()
+    driver_name = (getattr(scope, "driver", "") or "").lower()
+    vendor = ""
+
+    if "cisco" in collector_name or "ios" in collector_name or driver_name == "ios":
+        vendor = "cisco"
+    elif "aruba" in collector_name or "aoscx" in collector_name:
+        vendor = "aruba"
+
+    return {"vendor": vendor}
+
+
+def _build_discovery_result(device):
+    from orbweaver.models.common import DiscoveryResult
+
+    return DiscoveryResult(devices=[device])
 
 
 def _collect_device_data_via_collector(self, scope, sanitized_hostname, config, run_id=None):
@@ -152,6 +205,44 @@ def _collect_device_data_via_collector(self, scope, sanitized_hostname, config, 
     entities = translate_single_device(normalized_device, _defaults)
     primary_ip_ents = translate_primary_ip_entities(normalized_device, _defaults)
     metadata = {"policy_name": self.name, "hostname": sanitized_hostname}
+
+    cable_summary = CableResolutionSummary()
+    if not _is_cables_enabled(scope, config):
+        cable_summary.ingestion_disabled = True
+    else:
+        netbox_client = _pynetbox_client()
+        if netbox_client is None:
+            cable_summary.ingestion_error = "NetBox client not configured"
+            logger.warning(
+                "Policy %s, Hostname %s: cable ingestion skipped because NETBOX env vars are missing",
+                self.name,
+                sanitized_hostname,
+            )
+        else:
+            discovery_result = _build_discovery_result(normalized_device)
+            candidates, resolution_summary = resolve_cables(
+                discovery_result=discovery_result,
+                netbox_client=netbox_client,
+                normalization_rules=_normalization_rules(scope),
+            )
+            ingestion_summary = ingest_cables_direct(
+                candidates=candidates,
+                netbox_client=netbox_client,
+                write_enabled=True,
+                dry_run=False,
+            )
+            cable_summary = CableResolutionSummary(
+                discovered=resolution_summary.discovered,
+                candidates=resolution_summary.candidates,
+                created=ingestion_summary.created,
+                skipped=ingestion_summary.skipped,
+                unresolvable=resolution_summary.unresolvable,
+                skip_entries=resolution_summary.skip_entries + ingestion_summary.skip_entries,
+                ingestion_disabled=ingestion_summary.ingestion_disabled,
+                ingestion_error=ingestion_summary.ingestion_error or resolution_summary.ingestion_error,
+            )
+
+    self._orbweaver_last_cable_summary = dataclasses.asdict(cable_summary)
 
     client = Client()
     entities_list = list(entities)

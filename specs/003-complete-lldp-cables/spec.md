@@ -169,12 +169,26 @@ response confirms cable ingestion was disabled.
 - What if two interfaces on different devices share the same LLDP chassis MAC? → The system
   must flag this as ambiguous and skip cable creation for the affected neighbors.
 - What if a neighbor's advertised interface name differs in format from the NetBox interface
-  name (e.g., "Gi0/1" vs "GigabitEthernet0/1")? → Normalization must attempt to match;
-  if no match is found, the candidate is marked unresolvable.
+  name (e.g., "Gi0/1" vs "GigabitEthernet0/1")? → Vendor-specific canonical expansion is
+  attempted; if no match is found after normalization, the candidate is marked unresolvable
+  with reason `"interface_name_mismatch"`. The operator is informed and can manually correct
+  either the NetBox interface name or the LLDP data source.
 - What if a device advertises itself as a neighbor (loop)? → Self-referential neighbors are
   skipped and logged with reason `"self_loop_detected"`.
-- What if the NetBox API is unavailable during cable ingestion in direct mode? → The run
-  fails gracefully with an error; no partial state is written.
+- What if the NetBox API is unavailable during cable ingestion in direct mode? → The entire
+  run fails and any successfully written cables are rolled back; the error is surfaced to
+  the operator for manual intervention.
+- What if an operator manually modifies a cable that was created by a previous discovery run
+  (e.g., adds a label, changes status)? → On subsequent discovery runs, that cable is
+  recognized as existing and skipped without modification. The operator's changes are
+  preserved. If the operator needs to discard the cable and re-discover it fresh, they must
+  delete it manually from NetBox.
+- What if a newly discovered device advertises a neighbor whose chassis MAC matches an
+  existing device in NetBox (not in the current discovery run)? → The LLDP neighbor is
+  resolved to the existing NetBox device and the cable is created, linking the newly
+  discovered device to the existing inventory. This cable will have Partial confidence
+  because the existing device was not discovered in the current run. The operator can review
+  and approve the cable in the UI before it is written to NetBox.
 
 ## Requirements *(mandatory)*
 
@@ -182,21 +196,31 @@ response confirms cable ingestion was disabled.
 
 - **FR-001**: The system MUST resolve `NormalizedLLDPNeighbor` records into `NormalizedCable`
   candidates as part of the discovery post-processing step, operating on the full
-  `DiscoveryResult` (not per-device) to enable bidirectional deduplication.
+  `DiscoveryResult` (not per-device) to enable bidirectional deduplication. Resolution MUST
+  match advertised neighbors against both newly discovered devices and existing NetBox
+  inventory, allowing cables to span between discovered and pre-existing devices.
 
 - **FR-002**: Hostname matching MUST normalize LLDP-advertised hostnames and NetBox device
-  names by stripping domain suffixes and lowercasing before comparison, with chassis MAC
-  used as a fallback identifier when hostname matching fails.
+  names by stripping domain suffixes and lowercasing before comparison. Chassis MAC MUST be
+  used as a fallback or supplementary identifier when hostname matching fails or when resolving
+  neighbors against both newly discovered devices and existing NetBox inventory. A match to an
+  existing NetBox device (not in the discovery run) MUST be treated as a valid cable endpoint.
 
-- **FR-003**: Interface name matching MUST attempt canonical expansion of abbreviated names
-  (e.g., "Gi0/1" → "GigabitEthernet0/1") before declaring an interface unresolvable.
+- **FR-003**: Interface name matching MUST attempt vendor-specific canonical expansion of
+  abbreviated names (e.g., Cisco "Gi0/1" → "GigabitEthernet0/1", Aruba "1/1" → "1/1" if
+  already canonical) before declaring an interface unresolvable. If no canonical form matches
+  a NetBox interface, the candidate MUST be marked unresolvable with reason
+  `"interface_name_mismatch"`.
 
 - **FR-004**: Bidirectional cable deduplication MUST ensure that a cable discovered from
   both endpoints in the same run produces exactly one `NormalizedCable` record.
 
-- **FR-005**: The system MUST check NetBox for existing cables before creating new ones;
-  cables that already exist MUST be skipped, and the `cables.skipped` counter MUST be
-  incremented.
+- **FR-005**: The system MUST check NetBox for existing cables before creating new ones by
+  matching on endpoint pairs (device name + interface name for both ends). Cables that
+  already exist MUST be skipped without modification, even if their metadata (label,
+  description, status) differs from LLDP-derived data. The `cables.skipped` counter MUST
+  be incremented for each existing cable encountered. Operators retain full control over
+  cable metadata.
 
 - **FR-006**: One-sided LLDP neighbors (seen by only one endpoint) MUST NOT result in
   automatic cable creation; they MUST be surfaced to the operator with reason
@@ -206,7 +230,11 @@ response confirms cable ingestion was disabled.
   with per-cable accept/reject controls visible in the UI.
 
 - **FR-008**: Review sessions MUST display for each cable candidate: both device names,
-  both interface names, resolution confidence, and any skip/conflict reason.
+  both interface names, a resolution confidence tier (Confirmed, Partial, or Unresolvable),
+  and any skip/conflict reason. Confirmed cables are bidirectional matches with both
+  endpoints discovered in the current run; Partial are one-sided discoveries, hostname-only
+  matches, or cables where one endpoint is an existing NetBox device not in the current run;
+  Unresolvable include a reason code.
 
 - **FR-009**: Cable ingestion MUST be controllable via a feature flag at the policy or
   environment level; when disabled, no cables are written and the output confirms
@@ -227,6 +255,16 @@ response confirms cable ingestion was disabled.
   same topology; running the same policy N times MUST produce the same NetBox state as
   running it once.
 
+- **FR-014**: Cable ingestion failures (NetBox API errors, timeouts, or network failures)
+  MUST result in atomic rollback of all written cables for that run; no partial cable
+  state MUST be left in NetBox. The error MUST be surfaced to the operator with context
+  for manual recovery.
+
+- **FR-015**: Cable records in NetBox MUST NEVER be updated by discovery runs. Existing
+  cables are skipped without modification, preserving any operator-added metadata
+  (labels, descriptions, status changes, etc.). This ensures idempotency and operator
+  agency over cable properties.
+
 ### Key Entities
 
 - **NormalizedLLDPNeighbor**: Raw LLDP advertisement from one interface — local interface,
@@ -237,8 +275,12 @@ response confirms cable ingestion was disabled.
   interface name). Already part of the COM; produced by the resolution step.
 
 - **CableCandidate** *(new)*: Intermediate resolution artifact — holds a `NormalizedCable`
-  plus metadata: resolution confidence, skip reason if unresolvable, and whether the
-  candidate came from both sides or only one.
+  plus metadata: a resolution confidence tier (Confirmed: both endpoints discovered in
+  the current run with bidirectional match on hostname + interface; Partial: one-sided
+  discovery, hostname-only match, or one endpoint from existing NetBox inventory;
+  Unresolvable: skipped with reason), and provenance flags indicating which endpoints were
+  newly discovered vs. resolved against existing NetBox inventory. Unresolvable candidates
+  are not written to NetBox.
 
 - **CableResolutionSummary** *(new)*: Aggregated counters and per-skip detail for a
   discovery run — `discovered`, `created`, `skipped`, `unresolvable`, and a list of skip
@@ -279,8 +321,26 @@ response confirms cable ingestion was disabled.
   environment variables (already used by `netbox_ops.py`).
 - Cable deduplication against existing NetBox cables uses endpoint matching (device name +
   interface name for both ends), not cable ID or label.
+- The cable resolution algorithm matches LLDP-advertised hostnames and chassis MACs against
+  both newly discovered devices and existing NetBox inventory, enabling immediate visibility
+  of how new infrastructure integrates into existing topology. Cables may have one endpoint
+  from the current discovery run and the other from pre-existing NetBox records.
+- Concurrent discovery runs are safe due to NetBox's database-level uniqueness constraints on
+  cable endpoints; duplicate cable writes fail atomically and are handled gracefully without
+  distributed locking.
 - The review UI (Nuxt frontend) can be extended to display cable candidates alongside device
   candidates using the existing review session model.
 - Out of scope for this feature: automatic cable deletion (removing cables from NetBox when
   LLDP no longer advertises them) — this is a destructive operation requiring a separate
   feature with explicit operator controls.
+
+## Clarifications
+
+### Session 2026-05-11
+
+- Q: When two discovery runs execute simultaneously and both identify the same physical cable, how should the system handle potential race conditions? → A: Option B - Rely on NetBox database constraints (unique on device+interface pairs) to reject duplicate writes atomically.
+- Q: When the NetBox API is unavailable or returns errors during cable ingestion (direct mode), what should the discovery run do? → A: Option A - Fail the entire discovery run; roll back any successfully written cables; surface the error to the operator.
+- Q: How should cables be categorized by resolution confidence? → A: Option B - Three-tier system: Confirmed (bidirectional match on hostname + interface), Partial (one-sided or hostname-only match), Unresolvable (skipped with reason).
+- Q: How comprehensive should interface name normalization be? → A: Option B - Vendor-specific canonical mappings (Cisco, Aruba, etc.); attempt expansion; if no match found after expansion, mark unresolvable with reason `"interface_name_mismatch"`.
+- Q: Should the discovery run update existing cables or only create new ones? → A: Option A - Leave existing cables unchanged (create-or-skip only). Operators retain control over cable metadata; existing cables are skipped even if their metadata differs from LLDP-derived data.
+- Q: Should cable resolution match LLDP chassis MACs to existing NetBox devices, creating cross-device cables in a single run? → A: Yes. The algorithm should match LLDP-advertised chassis MACs against both newly discovered devices and existing NetBox inventory, enabling immediate visibility of how new switches integrate into the existing topology.

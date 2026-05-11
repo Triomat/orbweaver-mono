@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ItemStatus } from '~/types/api'
+import type { CableConfidence, ItemStatus } from '~/types/api'
 
 const route = useRoute()
 const reviewId = computed(() => route.params.id as string)
@@ -12,14 +12,21 @@ const {
   startPolling,
   stopPolling,
   setDeviceStatus,
+  setCableStatus,
   acceptAll,
   rejectAll,
+  acceptAllCables,
+  rejectAllCables,
+  filterCablesByConfidence,
   runIngest,
   ingestLoading,
   ingestResult,
   acceptedCount,
   rejectedCount,
   pendingCount,
+  acceptedCableCount,
+  rejectedCableCount,
+  pendingCableCount,
 } = useReview(reviewId)
 
 await fetchReview()
@@ -45,6 +52,7 @@ async function handleIngest() {
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 const readonly = computed(() => session.value?.status === 'ingested')
+const activeTab = ref<'devices' | 'cables'>('devices')
 
 const statusColor: Record<ItemStatus, string> = {
   pending: 'bg-yellow-50 text-yellow-700 border-yellow-200',
@@ -72,6 +80,28 @@ const filteredDevices = computed(() => {
     const model: string = d.data?.device_type?.model ?? ''
     const matchesSearch = !q || name.toLowerCase().includes(q) || site.toLowerCase().includes(q) || model.toLowerCase().includes(q)
     const matchesStatus = statusFilter.value === 'all' || d.status === statusFilter.value
+    return matchesSearch && matchesStatus
+  })
+})
+
+const cableSearch = ref('')
+const cableStatusFilter = ref<ItemStatus | 'all'>('all')
+const cableConfidenceFilter = ref<CableConfidence | 'all'>('all')
+
+const filteredCables = computed(() => {
+  const confidenceFiltered = filterCablesByConfidence(cableConfidenceFilter.value)
+  return confidenceFiltered.filter(item => {
+    const q = cableSearch.value.toLowerCase()
+    const cable = item.data?.cable
+    const reason = item.data?.skip_reason ?? ''
+    const matchesSearch = !q
+      || cable?.device_a_name?.toLowerCase().includes(q)
+      || cable?.device_b_name?.toLowerCase().includes(q)
+      || cable?.interface_a_name?.toLowerCase().includes(q)
+      || cable?.interface_b_name?.toLowerCase().includes(q)
+      || reason.toLowerCase().includes(q)
+
+    const matchesStatus = cableStatusFilter.value === 'all' || item.status === cableStatusFilter.value
     return matchesSearch && matchesStatus
   })
 })
@@ -135,6 +165,24 @@ const filteredDevices = computed(() => {
 
     <!-- Main review table -->
     <template v-else-if="session">
+      <div class="mb-4 flex gap-2">
+        <button
+          class="rounded-md border px-3 py-1.5 text-sm"
+          :class="activeTab === 'devices' ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-muted'"
+          @click="activeTab = 'devices'"
+        >
+          Devices ({{ session.devices.length }})
+        </button>
+        <button
+          class="rounded-md border px-3 py-1.5 text-sm"
+          :class="activeTab === 'cables' ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-muted'"
+          @click="activeTab = 'cables'"
+        >
+          Cables ({{ session.cables?.length ?? 0 }})
+        </button>
+      </div>
+
+      <template v-if="activeTab === 'devices'">
       <!-- Summary metrics -->
       <div class="mb-4 grid grid-cols-3 gap-3 sm:grid-cols-4">
         <div class="rounded-lg border p-3 text-center">
@@ -269,6 +317,66 @@ const filteredDevices = computed(() => {
           No devices match the current filter.
         </div>
       </div>
+      </template>
+
+      <template v-else>
+        <div class="mb-4">
+          <CableSummary :summary="session.cable_summary" />
+        </div>
+
+        <div class="mb-3 flex flex-wrap items-center gap-3">
+          <input
+            v-model="cableSearch"
+            placeholder="Search cables…"
+            class="rounded-md border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring w-48"
+          />
+          <select
+            v-model="cableStatusFilter"
+            class="rounded-md border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            <option value="all">All statuses</option>
+            <option value="pending">Pending</option>
+            <option value="accepted">Accepted</option>
+            <option value="rejected">Rejected</option>
+          </select>
+          <select
+            v-model="cableConfidenceFilter"
+            class="rounded-md border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            <option value="all">All confidence</option>
+            <option value="confirmed">Confirmed</option>
+            <option value="partial">Partial</option>
+            <option value="unresolvable">Unresolvable</option>
+          </select>
+
+          <div class="ml-auto grid grid-cols-3 gap-2 text-xs">
+            <div class="rounded-md border px-2 py-1 text-center">A: {{ acceptedCableCount }}</div>
+            <div class="rounded-md border px-2 py-1 text-center">R: {{ rejectedCableCount }}</div>
+            <div class="rounded-md border px-2 py-1 text-center">P: {{ pendingCableCount }}</div>
+          </div>
+
+          <div v-if="!readonly" class="flex gap-2">
+            <button
+              class="rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-green-50 hover:border-green-300 hover:text-green-700"
+              @click="acceptAllCables"
+            >
+              Accept All Cables
+            </button>
+            <button
+              class="rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-red-50 hover:border-red-300 hover:text-red-700"
+              @click="rejectAllCables"
+            >
+              Reject All Cables
+            </button>
+          </div>
+        </div>
+
+        <CableTable
+          :cables="filteredCables"
+          :readonly="readonly"
+          @status-change="setCableStatus"
+        />
+      </template>
     </template>
 
     <!-- Ingest result banner -->

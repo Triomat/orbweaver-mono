@@ -4,12 +4,15 @@
 
 export type ReviewStatus = 'pending' | 'ready' | 'ingested' | 'failed'
 export type ItemStatus = 'pending' | 'accepted' | 'rejected'
+export type CableConfidence = 'confirmed' | 'partial' | 'unresolvable'
 
-export interface ReviewItem {
+export interface ReviewItem<T = NormalizedDevice> {
   index: number
   status: ItemStatus
-  data: NormalizedDevice
+  data: T
 }
+
+export interface CableReviewItem extends ReviewItem<CableCandidate> { }
 
 export interface ReviewSummary {
   id: string
@@ -18,15 +21,21 @@ export interface ReviewSummary {
   updated_at: string
   status: ReviewStatus
   device_count: number
+  cable_count?: number
   accepted: number
   rejected: number
   pending: number
+  accepted_cables?: number
+  rejected_cables?: number
+  pending_cables?: number
   error: string | null
 }
 
 export interface ReviewSession extends ReviewSummary {
   defaults: Record<string, unknown>
   devices: ReviewItem[]
+  cables: CableReviewItem[]
+  cable_summary: CableResolutionSummary | null
 }
 
 // ── Discovery (COM) ────────────────────────────────────────────────────────
@@ -38,6 +47,50 @@ export interface NormalizedLLDPNeighbor {
   neighbor_chassis_mac: string
   neighbor_mgmt_ip: string
   neighbor_system_description: string
+}
+
+export interface NormalizedCable {
+  device_a_name: string
+  interface_a_name: string
+  device_b_name: string
+  interface_b_name: string
+  label?: string
+  description?: string
+  color?: string
+}
+
+export interface CableCandidate {
+  cable: NormalizedCable
+  confidence: CableConfidence
+  device_a_discovered: boolean
+  device_b_discovered: boolean
+  skip_reason: string | null
+  lldp_neighbor: NormalizedLLDPNeighbor | null
+  resolution_notes: string
+  lldp_direction: string
+}
+
+export interface CableSkipEntry {
+  local_device: string
+  local_interface: string
+  neighbor_hostname: string
+  reason: string
+  neighbor_interface: string
+  neighbor_chassis_mac: string
+  neighbor_mgmt_ip: string
+}
+
+export interface CableResolutionSummary {
+  discovered: number
+  candidates: number
+  created: number
+  skipped: number
+  unresolvable: number
+  skip_entries: CableSkipEntry[]
+  ingestion_disabled: boolean
+  ingestion_error: string | null
+  resolution_duration_ms?: number
+  ingestion_duration_ms?: number
 }
 
 export interface NormalizedDevice {
@@ -128,6 +181,8 @@ export interface IngestResponse {
   skipped_count: number
   errors: string[]
 }
+
+export interface CableIngestResponse extends CableResolutionSummary { }
 
 // ── Status ────────────────────────────────────────────────────────────────
 

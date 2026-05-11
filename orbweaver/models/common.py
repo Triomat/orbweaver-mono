@@ -19,6 +19,11 @@ import hashlib
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+from typing import TYPE_CHECKING
+
+
+if TYPE_CHECKING:
+    from orbweaver.cables.models import CableCandidate, CableResolutionSummary
 
 
 # ---------------------------------------------------------------------------
@@ -358,6 +363,8 @@ class DiscoveryResult:
     timestamp: datetime = field(default_factory=datetime.utcnow)
     vendor: str = ""
     errors: list[str] = field(default_factory=list)
+    cable_candidates: list[CableCandidate] = field(default_factory=list)
+    cable_summary: CableResolutionSummary | None = None
 
     @property
     def device_count(self) -> int:

@@ -19,6 +19,7 @@ from __future__ import annotations
 import logging
 import os
 import time
+from dataclasses import asdict
 
 logger = logging.getLogger(__name__)
 
@@ -36,12 +37,38 @@ from pydantic import ValidationError
 from device_discovery.client import Client
 from device_discovery.policy.models import Defaults, PolicyRequest
 from device_discovery.server import app, manager, parse_yaml_body, start_time
+import device_discovery.server as upstream_server
 from device_discovery.version import version_semver
 
 _ACCEPTED_CONTENT_TYPES = {
     "application/x-yaml", "text/yaml", "application/yaml",
     "application/json",
 }
+_INCLUDE_CABLES_POLICY_RESPONSE = os.environ.get(
+    "ORBWEAVER_INCLUDE_CABLES_POLICY_RESPONSE", "false"
+).strip().lower() in {"1", "true", "yes", "on"}
+
+_CABLE_SKIP_REASONS = [
+    "neighbor_device_not_found",
+    "interface_name_mismatch",
+    "one_sided_neighbor",
+    "already_exists",
+    "self_loop_detected",
+    "ambiguous_chassis_mac",
+    "ingestion_disabled",
+]
+
+
+def _is_cables_enabled(policy) -> bool:
+    env_value = os.environ.get("ORBWEAVER_CABLES_ENABLED", "true").strip().lower()
+    enabled = env_value not in {"0", "false", "no", "off"}
+
+    defaults = policy.config.defaults if policy and policy.config and policy.config.defaults else None
+    defaults_enabled = getattr(defaults, "cables_enabled", None)
+    if defaults_enabled is not None:
+        enabled = bool(defaults_enabled)
+
+    return enabled
 
 
 async def _parse_yaml_body_lenient(request: Request) -> PolicyRequest:
@@ -73,11 +100,15 @@ async def _parse_yaml_body_lenient(request: Request) -> PolicyRequest:
 
 # ── Orbweaver imports ─────────────────────────────────────────────────────────
 from orbweaver.collectors.registry import get_collector, list_collectors
+from orbweaver.cables.ingest import ingest_cables_from_review
+from orbweaver.cables.models import CableResolutionSummary
+from orbweaver.cables.resolve import resolve_cables
 from orbweaver.diode_translate import translate_primary_ip_entities, translate_single_device
 from orbweaver.review.compare import CompareConfig, compare_review_with_netbox
 from orbweaver.review.models import ItemStatus, ReviewItem, ReviewStatus
-from orbweaver.review.rebuild import device_from_dict
+from orbweaver.review.rebuild import cable_candidate_to_dict, device_from_dict, dict_to_cable_candidate
 from orbweaver.review.store import ReviewStore
+from orbweaver.netbox_ops import _pynetbox_client
 from orbweaver.seed.loader import run_seed
 from orbweaver.seed.models import SeedData
 
@@ -130,6 +161,16 @@ app.router.routes = [
     if not (isinstance(r, Route) and getattr(r, "path", None) == "/api/v1/status")
 ]
 
+app.router.routes = [
+    r
+    for r in app.router.routes
+    if not (
+        isinstance(r, Route)
+        and getattr(r, "path", None) == "/api/v1/policies"
+        and "POST" in getattr(r, "methods", set())
+    )
+]
+
 
 @app.get("/api/v1/status")
 def read_status():
@@ -157,13 +198,81 @@ def read_status():
         pass
 
     return EnhancedStatusResponse(
-        version=version_semver(),
+        version=upstream_server.version_semver(),
         up_time_seconds=round(time_diff.total_seconds()),
         policies=policy_statuses,
         diode_target=_diode_target,
         dry_run=_diode_target is None,
         reviews=reviews,
     ).model_dump()
+
+
+@app.post("/api/v1/policies", status_code=201)
+async def write_policy_with_cables(
+    request: PolicyRequest = Depends(parse_yaml_body),
+):
+    """Start policies and include cable feature state in the response body."""
+    if not request.policies:
+        raise HTTPException(status_code=400, detail="no policies found in request")
+
+    started_policies: list[str] = []
+    started_configs: dict[str, dict] = {}
+
+    for name, policy in request.policies.items():
+        try:
+            manager.start_policy(name, policy)
+            started_policies.append(name)
+            started_configs[name] = {
+                "enabled": _is_cables_enabled(policy),
+            }
+        except ValueError as e:
+            raise HTTPException(status_code=409, detail=str(e)) from e
+        except Exception as e:
+            for policy_name in started_policies:
+                manager.delete_policy(policy_name)
+            raise HTTPException(status_code=400, detail=str(e)) from e
+
+    if len(started_policies) == 1:
+        policy_name = started_policies[0]
+        detail = {"detail": f"policy '{policy_name}' was started"}
+        if not _INCLUDE_CABLES_POLICY_RESPONSE:
+            return detail
+
+        enabled = started_configs[policy_name]["enabled"]
+        return {
+            **detail,
+            "cables": {
+                "discovered": 0,
+                "candidates": 0,
+                "created": 0,
+                "skipped": 0,
+                "unresolvable": 0,
+                "skip_entries": [],
+                "ingestion_disabled": not enabled,
+                "ingestion_error": None,
+            },
+        }
+
+    detail = {"detail": f"policies {started_policies} were started"}
+    if not _INCLUDE_CABLES_POLICY_RESPONSE:
+        return detail
+
+    return {
+        **detail,
+        "cables": {
+            name: {
+                "discovered": 0,
+                "candidates": 0,
+                "created": 0,
+                "skipped": 0,
+                "unresolvable": 0,
+                "skip_entries": [],
+                "ingestion_disabled": not started_configs[name]["enabled"],
+                "ingestion_error": None,
+            }
+            for name in started_policies
+        },
+    }
 
 
 # ── Collectors ────────────────────────────────────────────────────────────────
@@ -209,6 +318,8 @@ def _background_discover(policy_request: PolicyRequest, policy_name: str, review
 
     tmp_session = _run(policy, policy_name=policy_name, review_store=review_store)
     session.devices = tmp_session.devices
+    session.cables = tmp_session.cables
+    session.cable_summary = tmp_session.cable_summary
     session.defaults = tmp_session.defaults
     session.status = tmp_session.status
     session.error = tmp_session.error
@@ -321,6 +432,23 @@ def patch_device_item(review_id: str, index: int, body: ItemUpdate):
     if index < 0 or index >= len(session.devices):
         raise HTTPException(status_code=404, detail=f"Device index {index} out of range")
     item = session.devices[index]
+    if body.status is not None:
+        item.status = body.status
+    if body.data is not None:
+        item.data = body.data
+    review_store.save(session)
+    return item.model_dump()
+
+
+@app.patch("/api/v1/reviews/{review_id}/items/cables/{index}")
+def patch_cable_item(review_id: str, index: int, body: ItemUpdate):
+    """Update a single cable item's status or data."""
+    session = review_store.get(review_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail=f"Review '{review_id}' not found")
+    if index < 0 or index >= len(session.cables):
+        raise HTTPException(status_code=404, detail=f"Cable index {index} out of range")
+    item = session.cables[index]
     if body.status is not None:
         item.status = body.status
     if body.data is not None:
@@ -513,6 +641,42 @@ def ingest_review(review_id: str, body: IngestRequest):
         review_store.save(session)
 
     return result
+
+
+@app.post("/api/v1/reviews/{review_id}/ingest-cables")
+def ingest_review_cables(review_id: str):
+    """Ingest only accepted cable candidates from a review session."""
+    session = review_store.get(review_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail=f"Review '{review_id}' not found")
+
+    approved = [item for item in session.cables if item.status == ItemStatus.ACCEPTED]
+    candidates = [dict_to_cable_candidate(item.data) for item in approved]
+
+    summary = ingest_cables_from_review(
+        approved_candidates=candidates,
+        netbox_client=_pynetbox_client(),
+        write_enabled=True,
+    )
+    session.cable_summary = asdict(summary)
+    review_store.save(session)
+    return session.cable_summary
+
+
+@app.get("/api/v1/cables/summary")
+def get_cable_summary():
+    """Return the latest cable ingestion summary seen on active policy runners."""
+    for runner in manager.runners.values():
+        summary = getattr(runner, "_orbweaver_last_cable_summary", None)
+        if summary:
+            return summary
+    return asdict(CableResolutionSummary())
+
+
+@app.get("/api/v1/cables/skip-reasons")
+def get_cable_skip_reasons():
+    """Return machine-readable skip reason catalog for UI filters."""
+    return {"reasons": _CABLE_SKIP_REASONS}
 
 
 # ── Seed infrastructure ───────────────────────────────────────────────────────

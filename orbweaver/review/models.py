@@ -41,6 +41,8 @@ class ReviewSession(BaseModel):
     # Policy defaults serialized so ingest can re-apply them
     defaults: dict = Field(default_factory=dict)
     devices: list[ReviewItem] = Field(default_factory=list)
+    cables: list[ReviewItem] = Field(default_factory=list)
+    cable_summary: dict | None = None
     error: str | None = None
 
     def touch(self) -> None:
@@ -52,6 +54,9 @@ class ReviewSession(BaseModel):
         total = len(self.devices)
         accepted = sum(1 for d in self.devices if d.status == ItemStatus.ACCEPTED)
         rejected = sum(1 for d in self.devices if d.status == ItemStatus.REJECTED)
+        cable_total = len(self.cables)
+        accepted_cables = sum(1 for c in self.cables if c.status == ItemStatus.ACCEPTED)
+        rejected_cables = sum(1 for c in self.cables if c.status == ItemStatus.REJECTED)
         return {
             "id": self.id,
             "policy_name": self.policy_name,
@@ -59,8 +64,12 @@ class ReviewSession(BaseModel):
             "updated_at": self.updated_at,
             "status": self.status,
             "device_count": total,
+            "cable_count": cable_total,
             "accepted": accepted,
             "rejected": rejected,
             "pending": total - accepted - rejected,
+            "accepted_cables": accepted_cables,
+            "rejected_cables": rejected_cables,
+            "pending_cables": cable_total - accepted_cables - rejected_cables,
             "error": self.error,
         }
