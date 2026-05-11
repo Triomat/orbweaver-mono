@@ -1,23 +1,21 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: 1.0.0 → 1.1.0
-Bump rationale: New principle added (VI. Test-Driven Development) — MINOR bump per versioning policy.
+Version change: 1.1.0 → 1.2.0
+Bump rationale: New principle added (VII. Feature Branch Workflow) — MINOR bump per versioning policy.
 
 Modified principles: None
 
 Added principles:
-  VI. Test-Driven Development (TDD)
+  VII. Feature Branch Workflow
 
 Added sections: None
 Removed sections: None
 
 Templates reviewed:
   ✅ .specify/templates/plan-template.md — Constitution Check gate is generic; no update required.
-     TDD gate will be reflected at plan-generation time by speckit.plan.
   ✅ .specify/templates/spec-template.md — No direct constitution references; no update required.
-  ✅ .specify/templates/tasks-template.md — Test task guidance updated to reflect TDD mandate:
-     test tasks are now required (not optional) per Principle VI.
+  ✅ .specify/templates/tasks-template.md — No updates required; task execution will follow branch discipline per Principle VII.
 
 Deferred TODOs: None — all placeholders resolved.
 -->
@@ -91,6 +89,20 @@ Integration tests requiring live devices MAY be skipped in CI but MUST be docume
 a living specification of expected behavior. Given that orbweaver monkey-patches upstream code,
 a strong test suite is essential to detect subtle breakage introduced by upstream version bumps.
 
+### VII. Feature Branch Workflow
+
+All feature development MUST occur on dedicated feature branches created from `develop`. No commits
+MUST ever be made directly to `develop`, `qas`, or `main` — these branches exist for merging only.
+Feature branches follow the naming convention `feature/*` or `bugfix/*` per speckit conventions
+(e.g., `feature/001-vendor-collector` or `bugfix/002-interface-speed`). Once a feature is complete,
+tested, and reviewed, it MUST be merged back to `develop` via a pull request. Promotion from `develop`
+to `qas` and `qas` to `main` is controlled and occurs only via human decision — no automation MAY
+trigger these promotions without explicit approval.
+
+**Rationale**: Feature branches enforce code review discipline, preserve `main` as a deployable
+artifact, and ensure `develop` serves as a stable integration point. This workflow makes it easy to
+work in parallel, revert mistakes, and trace the history of decisions through merge commits.
+
 ## Technology Constraints
 
 - **Backend runtime**: Python 3.11+, FastAPI (via upstream uvicorn entrypoint), NAPALM, pynetbox,
@@ -106,6 +118,8 @@ a strong test suite is essential to detect subtle breakage introduced by upstrea
 
 ## Development Workflow
 
+- **Branch discipline**: All work MUST happen on feature branches per Principle VII. `develop`, `qas`,
+  and `main` are merge-only. Feature branches are created from `develop` via `speckit.git.feature`.
 - All dev commands MUST be invoked via `justfile` from the monorepo root. Shell scripts in
   `scripts/` are service wrappers only — they MUST NOT contain business logic.
 - Feature work follows the speckit workflow: branch → specify → clarify → plan → tasks → implement.
@@ -129,4 +143,4 @@ Amendments MUST:
 3. Set `LAST_AMENDED_DATE` to the amendment date (ISO 8601).
 4. Preserve the original `RATIFICATION_DATE`.
 
-**Version**: 1.1.0 | **Ratified**: 2026-05-07 | **Last Amended**: 2026-05-07
+**Version**: 1.2.0 | **Ratified**: 2026-05-07 | **Last Amended**: 2026-05-11
